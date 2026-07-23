@@ -84,11 +84,32 @@ export function createRunStreamHandler() {
     }
 
     const encoder = new TextEncoder();
+    const abort = new AbortController();
+    const onClientAbort = () => abort.abort();
+    request.signal.addEventListener("abort", onClientAbort);
 
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false;
+
+        const safeClose = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            /* already closed by cancel / disconnect */
+          }
+        };
+
         const send = (event: StreamEvent) => {
-          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          if (closed || abort.signal.aborted) return;
+          try {
+            controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          } catch {
+            closed = true;
+            abort.abort();
+          }
         };
 
         try {
@@ -96,19 +117,28 @@ export function createRunStreamHandler() {
 
           const result = await runE2eTests(body, {
             onOutput: (text) => send({ type: "log", text }),
+            signal: abort.signal,
           });
 
-          send({
-            type: "done",
-            exitCode: result.exitCode,
-            syncedTabs: result.syncedTabs,
-            syncSummary: result.syncSummary,
-          });
+          if (!abort.signal.aborted) {
+            send({
+              type: "done",
+              exitCode: result.exitCode,
+              syncedTabs: result.syncedTabs,
+              syncSummary: result.syncSummary,
+            });
+          }
         } catch (error) {
-          send({ type: "error", message: (error as Error).message });
+          if (!abort.signal.aborted) {
+            send({ type: "error", message: (error as Error).message });
+          }
         } finally {
-          controller.close();
+          request.signal.removeEventListener("abort", onClientAbort);
+          safeClose();
         }
+      },
+      cancel() {
+        abort.abort();
       },
     });
 

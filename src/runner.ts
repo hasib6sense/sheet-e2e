@@ -29,7 +29,13 @@ function teeOutput(text: string, onOutput?: (chunk: string) => void) {
 
 function runPlaywright(
   specPaths: string[],
-  opts: { project?: string; workers?: number; grep?: string; onOutput?: (chunk: string) => void },
+  opts: {
+    project?: string;
+    workers?: number;
+    grep?: string;
+    onOutput?: (chunk: string) => void;
+    signal?: AbortSignal;
+  },
 ): Promise<{ exitCode: number; output: string }> {
   const rawArgs = ["playwright", "test", ...specPaths, `--project=${opts.project ?? "chromium"}`];
   if (opts.workers != null) rawArgs.push(`--workers=${opts.workers}`);
@@ -39,13 +45,47 @@ function runPlaywright(
   teeOutput(`\n> npx ${args.join(" ")}\n\n`, opts.onOutput);
 
   return new Promise((resolve) => {
+    if (opts.signal?.aborted) {
+      resolve({ exitCode: 130, output: "\nAborted before Playwright started.\n" });
+      return;
+    }
+
     let output = "";
+    let settled = false;
     const child = spawn("npx", args, {
       cwd: process.cwd(),
       shell: true,
       env: { ...process.env, FORCE_COLOR: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
+
+    const finish = (exitCode: number) => {
+      if (settled) return;
+      settled = true;
+      opts.signal?.removeEventListener("abort", onAbort);
+      resolve({ exitCode, output });
+    };
+
+    const onAbort = () => {
+      const text = "\nRun aborted (client disconnected).\n";
+      output += text;
+      teeOutput(text, opts.onOutput);
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        /* ignore */
+      }
+      // Fallback if process ignores SIGTERM
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* ignore */
+        }
+      }, 2000).unref?.();
+    };
+
+    opts.signal?.addEventListener("abort", onAbort);
 
     child.stdout?.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
@@ -61,9 +101,11 @@ function runPlaywright(
       const text = `\nFailed to start Playwright: ${err.message}\n`;
       output += text;
       teeOutput(text, opts.onOutput);
-      resolve({ exitCode: 1, output });
+      finish(1);
     });
-    child.on("close", (code) => resolve({ exitCode: code ?? 1, output }));
+    child.on("close", (code) => {
+      finish(opts.signal?.aborted ? 130 : (code ?? 1));
+    });
   });
 }
 
@@ -144,6 +186,7 @@ function batchesForCases(cases: { tab: string; testCaseId: string }[]): RunBatch
 
 export type E2eRunCallbacks = {
   onOutput?: (chunk: string) => void;
+  signal?: AbortSignal;
 };
 
 export async function runE2eTests(
@@ -168,15 +211,23 @@ export async function runE2eTests(
   const resultsFile = getResultsFile();
 
   for (const batch of batches) {
+    if (callbacks?.signal?.aborted) {
+      exitCode = exitCode || 130;
+      break;
+    }
+
     const result = await runPlaywright(batch.specs, {
       project: batch.project,
       workers: batch.workers,
       grep: batch.grep,
       onOutput: callbacks?.onOutput,
+      signal: callbacks?.signal,
     });
 
     output += result.output;
     if (result.exitCode !== 0) exitCode = result.exitCode;
+
+    if (callbacks?.signal?.aborted) break;
 
     if (syncSheet) {
       for (const tab of batch.tabs) syncedTabs.add(tab);
