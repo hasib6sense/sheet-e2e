@@ -1,0 +1,7 @@
+{
+  "spreadsheetId": "YOUR_GOOGLE_SPREADSHEET_ID",
+  "credentialsPath": "credentials/credentials.json",
+  "resultsFile": "playwright-results.json",
+  "skipTabs": ["Summery"],
+  "tabSuitesPath": "e2e/tab-suites.json"
+}

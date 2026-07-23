@@ -1,0 +1,7 @@
+[
+  {
+    "tab": "Example",
+    "specs": ["playwright-tests/example.spec.ts"],
+    "project": "chromium"
+  }
+]

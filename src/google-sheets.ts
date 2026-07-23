@@ -1,0 +1,407 @@
+import { google, sheets_v4 } from "googleapis";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  getCredentialsPath,
+  getResultsFile,
+  getSkipTabs,
+  getSpreadsheetId,
+  getTabSuite,
+} from "./config";
+import { formatErrorForSheet } from "./format-error";
+import {
+  indexLocalPlaywrightTests,
+  localSpecFileForTc,
+  normalizeTcId,
+} from "./local-specs";
+import type { E2eTabInfo, E2eTestCase } from "./types";
+
+const COL = {
+  testScenario: ["Test Scenario"],
+  testCaseId: ["Test Case ID", "Test Case ID "],
+  testCase: ["Test Case"],
+  category: ["Category"],
+  uiStatus: ["UI Status"],
+  playwright: ["Playwright"],
+  comment: ["Comment", "Comment "],
+};
+
+function findColIndex(headers: string[], aliases: string[]) {
+  for (let i = 0; i < headers.length; i += 1) {
+    const h = String(headers[i] ?? "").trim();
+    if (aliases.some((a) => h === a.trim())) return i;
+  }
+  return -1;
+}
+
+function colLetter(index: number) {
+  let n = index + 1;
+  let s = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+export function createSheetsClient(): sheets_v4.Sheets {
+  const credentialsPath = getCredentialsPath();
+
+  if (!existsSync(credentialsPath)) {
+    throw new Error(
+      `Google credentials not found: ${credentialsPath}. Set GOOGLE_APPLICATION_CREDENTIALS to the path of the credentials.json file.`,
+    );
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    keyFile: credentialsPath,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+
+  return google.sheets({ version: "v4", auth });
+}
+
+export async function listSheetTabNames(): Promise<string[]> {
+  const sheets = createSheetsClient();
+  const spreadsheetId = getSpreadsheetId();
+  const skip = getSkipTabs();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  return (meta.data.sheets ?? [])
+    .map((s) => s.properties?.title ?? "")
+    .filter((name) => name && !skip.has(name));
+}
+
+async function readTabRows(sheets: sheets_v4.Sheets, tab: string) {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getSpreadsheetId(),
+    range: `'${tab}'`,
+  });
+  const allRows = (res.data.values ?? []) as string[][];
+  if (!allRows.length) {
+    return { headers: [] as string[], rows: [] as string[][], headerRowNumber: 1 };
+  }
+
+  let headerIndex = 0;
+  for (let i = 0; i < Math.min(allRows.length, 30); i += 1) {
+    if (findColIndex(allRows[i] ?? [], COL.testCaseId) >= 0) {
+      headerIndex = i;
+      break;
+    }
+  }
+
+  const headers = allRows[headerIndex] ?? [];
+  const rows = allRows.slice(headerIndex + 1);
+  const headerRowNumber = headerIndex + 1;
+  return { headers, rows, headerRowNumber };
+}
+
+function isTcInLocalSpecs(tab: string, testCaseId: string): boolean {
+  const local = indexLocalPlaywrightTests().get(tab);
+  if (!local) return false;
+  const key = normalizeTcId(testCaseId);
+  return local.some((e) => normalizeTcId(e.testCaseId) === key);
+}
+
+function rowToTestCase(tab: string, row: string[], headers: string[]): E2eTestCase | null {
+  const idx = {
+    testScenario: findColIndex(headers, COL.testScenario),
+    tc: findColIndex(headers, COL.testCaseId),
+    testCase: findColIndex(headers, COL.testCase),
+    category: findColIndex(headers, COL.category),
+    uiStatus: findColIndex(headers, COL.uiStatus),
+    playwright: findColIndex(headers, COL.playwright),
+    comment: findColIndex(headers, COL.comment),
+  };
+
+  if (idx.tc < 0) return null;
+
+  const testCaseId = String(row[idx.tc] ?? "").trim();
+  if (!testCaseId) return null;
+
+  const category = idx.category >= 0 ? String(row[idx.category] ?? "").trim() : "";
+  const suite = getTabSuite(tab);
+  const hasSpec = Boolean(suite);
+  const implemented = isTcInLocalSpecs(tab, testCaseId);
+  const specFile = localSpecFileForTc(tab, testCaseId) ?? "";
+  const runnable = implemented;
+  const rawComment = idx.comment >= 0 ? String(row[idx.comment] ?? "").trim() : "";
+
+  return {
+    id: `${tab}::${testCaseId}`,
+    tab,
+    testCaseId,
+    testScenario: idx.testScenario >= 0 ? String(row[idx.testScenario] ?? "") : "",
+    testCase: idx.testCase >= 0 ? String(row[idx.testCase] ?? "") : "",
+    category,
+    uiStatus: idx.uiStatus >= 0 ? String(row[idx.uiStatus] ?? "") : "",
+    playwright: idx.playwright >= 0 ? String(row[idx.playwright] ?? "") : "",
+    comment: rawComment ? formatErrorForSheet(rawComment) : "",
+    hasSpec,
+    implemented,
+    specFile,
+    runnable,
+  };
+}
+
+/** Sheet rows that match a TC declared in local Playwright spec files. */
+export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E2eTestCase[]> {
+  const localIndex = indexLocalPlaywrightTests();
+  let tabNames = [...localIndex.keys()];
+
+  if (tabFilter?.length) {
+    const wanted = new Set(tabFilter.map((t) => t.toLowerCase()));
+    tabNames = tabNames.filter((t) => wanted.has(t.toLowerCase()));
+  }
+
+  const sheets = createSheetsClient();
+  const cases: E2eTestCase[] = [];
+
+  for (const tab of tabNames) {
+    const localEntries = localIndex.get(tab)!;
+    const localKeys = new Set(localEntries.map((e) => normalizeTcId(e.testCaseId)));
+
+    try {
+      const { headers, rows } = await readTabRows(sheets, tab);
+      if (!headers.length) continue;
+
+      const sheetByTc = new Map<string, E2eTestCase>();
+      for (const row of rows) {
+        const tc = rowToTestCase(tab, row, headers);
+        if (tc && localKeys.has(normalizeTcId(tc.testCaseId))) {
+          sheetByTc.set(normalizeTcId(tc.testCaseId), tc);
+        }
+      }
+
+      for (const entry of localEntries) {
+        const key = normalizeTcId(entry.testCaseId);
+        const fromSheet = sheetByTc.get(key);
+        if (fromSheet) {
+          cases.push(fromSheet);
+        } else {
+          cases.push({
+            id: `${tab}::${entry.testCaseId}`,
+            tab,
+            testCaseId: entry.testCaseId,
+            testScenario: "",
+            testCase: entry.testCaseId,
+            category: "UI",
+            uiStatus: "",
+            playwright: "",
+            comment: "",
+            hasSpec: true,
+            implemented: true,
+            specFile: entry.specFile,
+            runnable: true,
+          });
+        }
+      }
+    } catch {
+      for (const entry of localEntries) {
+        cases.push({
+          id: `${tab}::${entry.testCaseId}`,
+          tab,
+          testCaseId: entry.testCaseId,
+          testScenario: "",
+          testCase: entry.testCaseId,
+          category: "UI",
+          uiStatus: "",
+          playwright: "",
+          comment: "",
+          hasSpec: true,
+          implemented: true,
+          specFile: entry.specFile,
+          runnable: true,
+        });
+      }
+    }
+  }
+
+  return cases;
+}
+
+/** @deprecated Use fetchImplementedTestCases */
+export async function fetchAllTestCases(tabFilter?: string[]): Promise<E2eTestCase[]> {
+  return fetchImplementedTestCases(tabFilter);
+}
+
+export async function fetchTabInfo(): Promise<E2eTabInfo[]> {
+  const localIndex = indexLocalPlaywrightTests();
+  const cases = await fetchImplementedTestCases();
+
+  return [...localIndex.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, entries]) => {
+      const suite = getTabSuite(name);
+      const tabCases = cases.filter((c) => c.tab === name);
+      return {
+        name,
+        hasSpec: Boolean(suite),
+        specFiles: suite?.specs ?? entries.map((e) => e.specFile),
+        caseCount: tabCases.length,
+        implementedCount: entries.length,
+        runnableCount: tabCases.filter((c) => c.runnable).length,
+      };
+    });
+}
+
+function extractTcId(title: string) {
+  const m = title.match(/^(TC[-_]?\d+)/i);
+  return m ? m[1] : null;
+}
+
+type ParsedResult = { tcId: string; status: string; error: string; title: string };
+
+function walkSuites(
+  suite: { specs?: unknown[]; suites?: unknown[] },
+  out: Map<string, ParsedResult>,
+) {
+  for (const spec of (suite.specs ?? []) as {
+    title?: string;
+    tests?: {
+      projectName?: string;
+      results?: { status?: string; errors?: { message?: string }[] }[];
+    }[];
+  }[]) {
+    const tcId = extractTcId(spec.title ?? "");
+    if (!tcId) continue;
+
+    const tests = spec.tests ?? [];
+    const chromiumTest =
+      tests.find(
+        (t) => t.projectName === "chromium" || t.projectName === "chromium-unauth",
+      ) ?? tests[0];
+    if (!chromiumTest) continue;
+
+    const results = chromiumTest.results ?? [];
+    const failed = results.some((r) => r.status === "failed" || r.status === "timedOut");
+    const last = results[results.length - 1];
+    const status = failed ? "failed" : (last?.status ?? "skipped");
+
+    let error = "";
+    for (const r of results) {
+      for (const e of r.errors ?? []) {
+        if (e.message) error = error ? `${error}\n---\n${e.message}` : e.message;
+      }
+    }
+
+    out.set(normalizeTcId(tcId), {
+      tcId,
+      title: spec.title ?? "",
+      status,
+      error: error.trim(),
+    });
+  }
+
+  for (const child of (suite.suites ?? []) as { specs?: unknown[]; suites?: unknown[] }[]) {
+    walkSuites(child, out);
+  }
+}
+
+export function parsePlaywrightReport(reportPath: string): Map<string, ParsedResult> {
+  const raw = readFileSync(reportPath, "utf8");
+  const report = JSON.parse(raw) as { suites?: { specs?: unknown[]; suites?: unknown[] }[] };
+  const byTc = new Map<string, ParsedResult>();
+  for (const suite of report.suites ?? []) {
+    walkSuites(suite, byTc);
+  }
+  return byTc;
+}
+
+export async function syncTabResults(
+  sheets: sheets_v4.Sheets,
+  tab: string,
+  resultsByTc: Map<string, ParsedResult>,
+): Promise<number> {
+  const { headers, rows, headerRowNumber } = await readTabRows(sheets, tab);
+
+  const idx = {
+    tc: findColIndex(headers, COL.testCaseId),
+    category: findColIndex(headers, COL.category),
+    uiStatus: findColIndex(headers, COL.uiStatus),
+    playwright: findColIndex(headers, COL.playwright),
+    comment: findColIndex(headers, COL.comment),
+  };
+
+  if (idx.tc < 0 || idx.uiStatus < 0 || idx.playwright < 0) {
+    throw new Error(`Tab "${tab}": missing required columns.`);
+  }
+
+  const batch: { range: string; values: string[][] }[] = [];
+  let updated = 0;
+  const spreadsheetId = getSpreadsheetId();
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    const sheetRow = headerRowNumber + 1 + i;
+    const tcRaw = row[idx.tc];
+    if (!tcRaw) continue;
+
+    const category = idx.category >= 0 ? String(row[idx.category] ?? "").trim() : "";
+    if (category.toUpperCase() === "API") continue;
+
+    const result = resultsByTc.get(normalizeTcId(tcRaw));
+    if (!result) continue;
+
+    const uiStatus = result.status === "passed" ? "Passed" : "Failed";
+    const playwright = "Implemented";
+    const comment =
+      result.status === "passed" ? "" : formatErrorForSheet(result.error, result.title);
+
+    const writes = [
+      { col: idx.uiStatus, value: uiStatus },
+      { col: idx.playwright, value: playwright },
+    ];
+    if (idx.comment >= 0) writes.push({ col: idx.comment, value: comment });
+
+    for (const w of writes) {
+      batch.push({
+        range: `'${tab}'!${colLetter(w.col)}${sheetRow}`,
+        values: [[w.value]],
+      });
+    }
+    updated += 1;
+  }
+
+  if (!batch.length) return 0;
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: { valueInputOption: "USER_ENTERED", data: batch },
+  });
+
+  return updated;
+}
+
+export async function syncSheetsForTabs(
+  tabs: string[],
+  reportPath?: string,
+): Promise<string[]> {
+  if (process.env.E2E_NO_SHEET_SYNC === "1") {
+    return ["Sheet sync skipped (E2E_NO_SHEET_SYNC=1)."];
+  }
+
+  const resolvedReport = resolve(reportPath ?? getResultsFile());
+  if (!existsSync(resolvedReport)) {
+    return [`Sheet sync skipped: report not found at ${resolvedReport}`];
+  }
+
+  const resultsByTc = parsePlaywrightReport(resolvedReport);
+  if (!resultsByTc.size) {
+    return ["Sheet sync skipped: no TC tests in report."];
+  }
+
+  const sheets = createSheetsClient();
+  const summary: string[] = [];
+
+  for (const tab of tabs) {
+    try {
+      const n = await syncTabResults(sheets, tab, resultsByTc);
+      summary.push(`${tab}: ${n} row(s) updated`);
+    } catch (err) {
+      summary.push(`${tab}: sync failed — ${(err as Error).message}`);
+    }
+  }
+
+  return summary;
+}
