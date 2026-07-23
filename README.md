@@ -5,9 +5,9 @@ Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google
 ## Install (from Git)
 
 ```bash
-npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.1
+npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.2
 # or SSH:
-# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.1
+# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.2
 
 npm i -D googleapis @playwright/test
 npx sheet-e2e init
@@ -21,14 +21,32 @@ Add to `next.config`:
 transpilePackages: ["@6sense/sheet-e2e"]
 ```
 
+Scan package classes in Tailwind (required for the runner UI):
+
+```ts
+// tailwind.config.ts
+content: [
+  "./src/**/*.{js,ts,jsx,tsx,mdx}",
+  "./node_modules/@6sense/sheet-e2e/src/**/*.{js,ts,jsx,tsx}",
+],
+```
+
+Or in `globals.css` (Tailwind v4):
+
+```css
+@source "../../node_modules/@6sense/sheet-e2e/src";
+```
+
 ## Host files (after init)
 
 | Path | Role |
 |------|------|
 | `e2e/tab-suites.json` | Sheet tab → Playwright specs / project / workers |
 | `e2e/env.example` | Env vars to copy into `.env` |
-| `app/e2e-runner/page.tsx` | Thin re-export of `E2eRunnerPage` |
-| `app/api/e2e/*/route.ts` | Thin re-exports of package handlers |
+| `app/e2e-runner/page.tsx` | Thin re-export of `E2eRunnerPage` from `@6sense/sheet-e2e/next` |
+| `app/api/e2e/*/route.ts` | Thin re-exports from `@6sense/sheet-e2e/next/handlers` |
+
+Import UI from `@6sense/sheet-e2e/next` and API handlers from `@6sense/sheet-e2e/next/handlers` (do not mix — handlers pull in `googleapis`).
 
 No root `sheet-e2e.config.json` is required.
 

@@ -111,12 +111,13 @@ export async function runInit(args: string[]) {
 Next steps:
   1. npm i -D googleapis @playwright/test   (if not already installed)
   2. Add transpilePackages: ["@6sense/sheet-e2e"] to next.config
-  3. Copy e2e/env.example → .env and set GOOGLE_SPREADSHEET_ID (+ credentials path)
-  4. Place credentials at credentials/credentials.json (or path in GOOGLE_APPLICATION_CREDENTIALS)
-  5. Share the sheet with the service account email (Editor)
-  6. Map tabs → specs in e2e/tab-suites.json
-  7. Ensure playwright.config.ts has JSON reporter → playwright-results.json
-  8. Open /e2e-runner (protect this route in production)
+  3. Add Tailwind content/source for node_modules/@6sense/sheet-e2e/src
+  4. Copy e2e/env.example → .env and set GOOGLE_SPREADSHEET_ID (+ credentials path)
+  5. Place credentials at credentials/credentials.json (or path in GOOGLE_APPLICATION_CREDENTIALS)
+  6. Share the sheet with the service account email (Editor)
+  7. Map tabs → specs in e2e/tab-suites.json
+  8. Ensure playwright.config.ts has JSON reporter → playwright-results.json
+  9. Open /e2e-runner (protect this route in production)
 
 Sheet columns required: Test Case ID, Category, UI Status, Playwright, Comment
 `);

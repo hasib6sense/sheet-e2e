@@ -112,18 +112,29 @@ function Btn({
   className?: string;
   title?: string;
 }) {
+  // Inline colors so Run buttons stay visible even if the host Tailwind
+  // content paths do not scan this package (common after git install).
   const variants = {
-    default: "border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50",
-    dark: "bg-neutral-900 text-white hover:bg-neutral-800",
-    danger: "bg-red-600 text-white hover:bg-red-500",
-    ghost: "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100",
+    default:
+      "border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50",
+    dark: "border border-neutral-900 text-white hover:opacity-90",
+    danger: "border border-red-600 text-white hover:opacity-90",
+    ghost:
+      "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100",
   };
+  const inlineStyle =
+    variant === "dark"
+      ? { backgroundColor: "#171717", color: "#fff" }
+      : variant === "danger"
+        ? { backgroundColor: "#dc2626", color: "#fff" }
+        : undefined;
   return (
     <button
       type="button"
       title={title}
       disabled={disabled}
       onClick={onClick}
+      style={inlineStyle}
       className={cn(
         "inline-flex h-9 flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],

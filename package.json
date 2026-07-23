@@ -1,6 +1,6 @@
 {
   "name": "@6sense/sheet-e2e",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Playwright e2e runner UI, APIs, sheet sync, and CLI for Next.js apps",
   "license": "UNLICENSED",
   "type": "module",
@@ -23,6 +23,10 @@
     "./next": {
       "types": "./src/next/index.ts",
       "default": "./src/next/index.ts"
+    },
+    "./next/handlers": {
+      "types": "./src/next/handlers.ts",
+      "default": "./src/next/handlers.ts"
     },
     "./package.json": "./package.json"
   },
