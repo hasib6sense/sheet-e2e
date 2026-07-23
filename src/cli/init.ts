@@ -71,8 +71,13 @@ export async function runInit(args: string[]) {
 
   ensureDir(join(cwd, "e2e"));
   copyTemplate("tab-suites.json", join(cwd, "e2e/tab-suites.json"), force);
-  copyTemplate("sheet-e2e.config.json", join(cwd, "sheet-e2e.config.json"), force);
+  // Config lives in .env — optional JSON template kept under e2e/ for reference only
   copyTemplate("env.example", join(cwd, "e2e/env.example"), force);
+  if (!existsSync(join(cwd, ".env.example"))) {
+    copyTemplate("env.example", join(cwd, ".env.example"), force);
+  } else {
+    console.log("  tip: merge e2e/env.example into your .env (GOOGLE_SPREADSHEET_ID, …)");
+  }
 
   copyTemplate(
     "e2e-runner-page.tsx",
@@ -106,11 +111,12 @@ export async function runInit(args: string[]) {
 Next steps:
   1. npm i -D googleapis @playwright/test   (if not already installed)
   2. Add transpilePackages: ["@6sense/sheet-e2e"] to next.config
-  3. Set GOOGLE_SPREADSHEET_ID and place credentials at credentials/credentials.json
-  4. Share the sheet with the service account email (Editor)
-  5. Map tabs → specs in e2e/tab-suites.json
-  6. Ensure playwright.config.ts has JSON reporter → playwright-results.json
-  7. Open /e2e-runner (protect this route in production)
+  3. Copy e2e/env.example → .env and set GOOGLE_SPREADSHEET_ID (+ credentials path)
+  4. Place credentials at credentials/credentials.json (or path in GOOGLE_APPLICATION_CREDENTIALS)
+  5. Share the sheet with the service account email (Editor)
+  6. Map tabs → specs in e2e/tab-suites.json
+  7. Ensure playwright.config.ts has JSON reporter → playwright-results.json
+  8. Open /e2e-runner (protect this route in production)
 
 Sheet columns required: Test Case ID, Category, UI Status, Playwright, Comment
 `);

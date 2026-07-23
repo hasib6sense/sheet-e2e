@@ -2,9 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { E2eTabSuite, SheetE2eConfigFile } from "./types";
 
-const CONFIG_CANDIDATES = [
+/** Optional JSON config — env vars take precedence when set. */
+const CONFIG_FILE_CANDIDATES = [
   "sheet-e2e.config.json",
   "e2e/sheet-e2e.config.json",
+];
+
+const TAB_SUITES_CANDIDATES = [
   "e2e/tab-suites.json",
   "src/lib/e2e/tab-suites.json",
 ];
@@ -25,64 +29,84 @@ function readJsonFile(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function findConfigFile(cwd: string): { path: string; data: unknown } | null {
+function findOptionalConfigFile(cwd: string): { path: string; data: SheetE2eConfigFile } | null {
   const fromEnv = process.env.SHEET_E2E_CONFIG?.trim();
   if (fromEnv) {
     const full = resolve(cwd, fromEnv);
-    if (existsSync(full)) return { path: full, data: readJsonFile(full) };
+    if (existsSync(full)) {
+      return { path: full, data: readJsonFile(full) as SheetE2eConfigFile };
+    }
   }
 
-  for (const rel of CONFIG_CANDIDATES) {
+  for (const rel of CONFIG_FILE_CANDIDATES) {
     const full = resolve(cwd, rel);
     if (!existsSync(full)) continue;
-    return { path: full, data: readJsonFile(full) };
+    return { path: full, data: readJsonFile(full) as SheetE2eConfigFile };
   }
   return null;
 }
 
-function normalizeSuites(data: unknown, configPath: string | null): {
-  suites: E2eTabSuite[];
-  suitesPath: string | null;
-  fileConfig: SheetE2eConfigFile;
-} {
-  if (Array.isArray(data)) {
-    return {
-      suites: data as E2eTabSuite[],
-      suitesPath: configPath,
-      fileConfig: {},
-    };
+function resolveTabSuitesPath(cwd: string, fileConfig: SheetE2eConfigFile): string | null {
+  const fromEnv =
+    process.env.E2E_TAB_SUITES_PATH?.trim() ||
+    process.env.SHEET_E2E_TAB_SUITES_PATH?.trim();
+  if (fromEnv) {
+    const full = resolve(cwd, fromEnv);
+    if (existsSync(full)) return full;
   }
 
-  const fileConfig = (data ?? {}) as SheetE2eConfigFile;
-  if (Array.isArray(fileConfig.tabSuites) && fileConfig.tabSuites.length) {
-    return { suites: fileConfig.tabSuites, suitesPath: configPath, fileConfig };
+  if (fileConfig.tabSuitesPath?.trim()) {
+    const full = resolve(cwd, fileConfig.tabSuitesPath.trim());
+    if (existsSync(full)) return full;
   }
 
-  if (fileConfig.tabSuitesPath) {
-    const suitesFull = resolve(process.cwd(), fileConfig.tabSuitesPath);
-    if (existsSync(suitesFull)) {
-      const suitesData = readJsonFile(suitesFull);
-      if (Array.isArray(suitesData)) {
-        return {
-          suites: suitesData as E2eTabSuite[],
-          suitesPath: suitesFull,
-          fileConfig,
-        };
-      }
-    }
+  for (const rel of TAB_SUITES_CANDIDATES) {
+    const full = resolve(cwd, rel);
+    if (existsSync(full)) return full;
   }
 
-  return { suites: [], suitesPath: configPath, fileConfig };
+  return null;
 }
 
-/** Load host config from env + sheet-e2e.config.json / tab-suites.json. */
+function loadTabSuites(
+  cwd: string,
+  fileConfig: SheetE2eConfigFile,
+): { suites: E2eTabSuite[]; suitesPath: string | null } {
+  if (Array.isArray(fileConfig.tabSuites) && fileConfig.tabSuites.length) {
+    return { suites: fileConfig.tabSuites, suitesPath: null };
+  }
+
+  const suitesPath = resolveTabSuitesPath(cwd, fileConfig);
+  if (!suitesPath) return { suites: [], suitesPath: null };
+
+  const data = readJsonFile(suitesPath);
+  if (!Array.isArray(data)) {
+    throw new Error(`Tab suites file must be a JSON array: ${suitesPath}`);
+  }
+  return { suites: data as E2eTabSuite[], suitesPath };
+}
+
+function parseSkipTabs(fileConfig: SheetE2eConfigFile): Set<string> {
+  const fromEnv = process.env.E2E_SKIP_TABS?.trim();
+  if (fromEnv) {
+    return new Set(
+      fromEnv
+        .split(/[,;]/)
+        .map((t) => t.trim())
+        .filter(Boolean),
+    );
+  }
+  if (fileConfig.skipTabs?.length) return new Set(fileConfig.skipTabs);
+  return new Set(["Summery"]);
+}
+
+/** Load host config from env (preferred) + optional sheet-e2e.config.json / tab-suites.json. */
 export function loadConfig(cwd = process.cwd(), forceReload = false): ResolvedConfig {
   if (cachedConfig && cachedConfig.cwd === cwd && !forceReload) return cachedConfig;
 
-  const found = findConfigFile(cwd);
-  const { suites, suitesPath, fileConfig } = found
-    ? normalizeSuites(found.data, found.path)
-    : { suites: [] as E2eTabSuite[], suitesPath: null, fileConfig: {} as SheetE2eConfigFile };
+  const found = findOptionalConfigFile(cwd);
+  const fileConfig = found?.data ?? {};
+  const { suites, suitesPath } = loadTabSuites(cwd, fileConfig);
 
   const spreadsheetId =
     process.env.GOOGLE_SPREADSHEET_ID?.trim() ||
@@ -101,16 +125,11 @@ export function loadConfig(cwd = process.cwd(), forceReload = false): ResolvedCo
     fileConfig.resultsFile?.trim() ||
     "playwright-results.json";
 
-  const skipList = fileConfig.skipTabs?.length
-    ? fileConfig.skipTabs
-    : ["Summery"];
-  const skipTabs = new Set(skipList);
-
   cachedConfig = {
     spreadsheetId,
     credentialsPath,
     resultsFile,
-    skipTabs,
+    skipTabs: parseSkipTabs(fileConfig),
     tabSuites: suites,
     tabSuitesPath: suitesPath,
     cwd,
@@ -126,7 +145,7 @@ export function getSpreadsheetId(): string {
   const id = loadConfig().spreadsheetId;
   if (!id) {
     throw new Error(
-      "GOOGLE_SPREADSHEET_ID is not set. Add it to .env or sheet-e2e.config.json.",
+      "GOOGLE_SPREADSHEET_ID is not set. Add it to .env (or optional sheet-e2e.config.json).",
     );
   }
   return id;

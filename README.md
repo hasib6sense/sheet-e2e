@@ -5,15 +5,15 @@ Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google
 ## Install (from Git)
 
 ```bash
-npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.0
-# or HTTPS:
-# npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.0
+npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.1
+# or SSH:
+# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.1
 
 npm i -D googleapis @playwright/test
 npx sheet-e2e init
 ```
 
-Pin a tag (`#v0.1.0`) rather than `#main` so upgrades are intentional.
+Pin a tag (`#v0.1.1`) rather than `#main` so upgrades are intentional.
 
 Add to `next.config`:
 
@@ -26,22 +26,30 @@ transpilePackages: ["@6sense/sheet-e2e"]
 | Path | Role |
 |------|------|
 | `e2e/tab-suites.json` | Sheet tab → Playwright specs / project / workers |
-| `sheet-e2e.config.json` | Spreadsheet id, credentials path, skip tabs |
+| `e2e/env.example` | Env vars to copy into `.env` |
 | `app/e2e-runner/page.tsx` | Thin re-export of `E2eRunnerPage` |
 | `app/api/e2e/*/route.ts` | Thin re-exports of package handlers |
+
+No root `sheet-e2e.config.json` is required.
 
 ## Env
 
 ```
 GOOGLE_SPREADSHEET_ID=...
 GOOGLE_APPLICATION_CREDENTIALS=credentials/credentials.json
+
+# Optional
+E2E_RESULTS_FILE=playwright-results.json
+E2E_SKIP_TABS=Summery
+E2E_TAB_SUITES_PATH=e2e/tab-suites.json
+E2E_NO_SHEET_SYNC=1
 ```
 
 Share the spreadsheet with the service account email as **Editor**.
 
 ## Playwright coupling
 
-`playwright.config.ts` must emit JSON results at the path configured as `resultsFile` (default `playwright-results.json`):
+`playwright.config.ts` must emit JSON results at the path configured as `E2E_RESULTS_FILE` (default `playwright-results.json`):
 
 ```ts
 reporter: [
