@@ -1,6 +1,6 @@
 {
   "name": "@6sense/sheet-e2e",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Playwright e2e runner UI, APIs, sheet sync, and CLI for Next.js apps",
   "license": "UNLICENSED",
   "type": "module",
@@ -47,9 +47,15 @@
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": true },
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",

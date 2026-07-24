@@ -40,6 +40,15 @@ Do **not** use `--force` if the host already has `playwright.config.ts` / `auth.
 5. Write non-API Playwright specs (this skill)
 6. Open `/e2e-runner` or `npm run test:e2e`
 
+### Uninstall
+
+```bash
+npx sheet-e2e uninstall -y
+# or: npx sheet-e2e uninstall -y --purge
+```
+
+Removes runner routes/config patches/scripts/package; keeps Playwright specs and `.env`.
+
 `init` already wires: runner page/APIs, scripts, peers, Playwright scaffold, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skill, optional e2e gate template.
 
 Flags: `--minimal`, `--force`, `--no-install`, `--browsers`.
