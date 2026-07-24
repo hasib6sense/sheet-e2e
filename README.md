@@ -78,7 +78,15 @@ reporter: [
 
 `tab-suites.json` `project` values must match Playwright project names (e.g. `chromium`, `chromium-unauth`).
 
+## Cursor skill (new projects)
+
+Generic sheet → Playwright generation skill (auth.setup, Category API omit, tab-suites):
+
+- In this repo: `skills/sheet-playwright-e2e/SKILL.md`
+- Copy into a host app as `.cursor/skills/sheet-playwright-e2e/SKILL.md`, or install as a personal Cursor skill under `~/.cursor/skills/sheet-playwright-e2e/`
+
 ## Sheet contract
+
 
 Required columns (aliases supported):
 
