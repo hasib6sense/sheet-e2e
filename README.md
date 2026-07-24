@@ -7,8 +7,10 @@ Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google
 ## 1. Installation
 
 ```bash
-# Pin a release tag (prefer this over #main)
-npm i -D github:hasib6sense/sheet-e2e#v0.1.6
+# Pin a release tag (or use #main for tip)
+npm i -D github:hasib6sense/sheet-e2e#v0.1.9
+# latest tip:
+# npm i -D github:hasib6sense/sheet-e2e#main
 
 # Full host wiring (recommended for new or reset projects)
 npx sheet-e2e init
@@ -24,9 +26,9 @@ npx sheet-e2e doctor
 **Alternative install URLs**
 
 ```bash
-npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.6
+npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.9
 # SSH:
-# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.6
+# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.9
 ```
 
 **Init flags**
@@ -88,13 +90,43 @@ Do these **after** `init` / `doctor` before using the runner:
 ### Checklist
 
 ```
-- [ ] npm i -D …#v0.1.6 && npx sheet-e2e init && npx sheet-e2e doctor
+- [ ] npm i -D …#v0.1.9 && npx sheet-e2e init && npx sheet-e2e doctor
 - [ ] GOOGLE_SPREADSHEET_ID + credentials file
 - [ ] Sheet shared with service account (Editor)
 - [ ] auth.setup.ts matches your login UI
 - [ ] e2e/tab-suites.json mapped
 - [ ] At least one non-API Playwright suite
 - [ ] /e2e-runner opens (dev)
+```
+
+---
+
+## 4. Uninstall (remove from a project)
+
+Proper cleanup (not only `npm uninstall`):
+
+```bash
+npx sheet-e2e uninstall -y
+
+# Also remove e2e/ folder + example.spec.ts
+npx sheet-e2e uninstall -y --purge
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-y` / `--yes` | Skip confirmation |
+| `--purge` | Also delete `e2e/` and `playwright-tests/example.spec.ts` |
+| `--keep-dep` | Strip files/config only; leave `@6sense/sheet-e2e` in package.json |
+
+**Removes:** `/e2e-runner`, `/api/e2e/*`, `e2e-gate.middleware.ts`, `e2e/tab-suites.json`, Next `transpilePackages` entry, Tailwind `@source` + `content` entry, `test:e2e*` scripts that call `sheet-e2e`, copied Cursor skill, npm package.
+
+**Keeps:** `playwright.config.ts`, real `playwright-tests/*`, `auth.setup.ts`, `.env` secrets (delete those yourself if desired).
+
+If the CLI is already gone:
+
+```bash
+npm uninstall @6sense/sheet-e2e
+# then manually delete e2e-runner / api/e2e and reverse Next/Tailwind patches
 ```
 
 ---
@@ -147,6 +179,7 @@ Required columns (aliases supported):
 
 ```bash
 sheet-e2e init [--force] [--minimal] [--no-install] [--browsers]
+sheet-e2e uninstall [-y] [--purge] [--keep-dep]
 sheet-e2e doctor
 sheet-e2e run "Sign In"
 sheet-e2e select --all
@@ -157,7 +190,7 @@ sheet-e2e sync --tabs "Holiday,Projects"
 
 ```bash
 # bump version in package.json, then:
-git tag v0.1.8
+git tag v0.1.9
 git push origin main --tags
 ```
 

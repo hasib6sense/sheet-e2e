@@ -5,6 +5,7 @@ import { syncSheetsForTabs } from "../google-sheets";
 import { runE2eTests } from "../runner";
 import { runDoctor } from "./doctor";
 import { runInit } from "./init";
+import { runUninstall } from "./uninstall";
 
 function printHelp() {
   console.log(`
@@ -17,6 +18,13 @@ Usage:
       --force       overwrite existing scaffold files
       --no-install  skip npm i -D googleapis @playwright/test
       --browsers    also run npx playwright install
+
+  sheet-e2e uninstall [-y] [--purge] [--keep-dep]
+      Remove runner wiring from the host project (reverse of init).
+      -y / --yes    skip confirmation
+      --purge       also remove e2e/ folder and example.spec.ts
+      --keep-dep    leave @6sense/sheet-e2e in package.json (files/config only)
+      Keeps Playwright specs, auth.setup, playwright.config, and .env secrets.
 
   sheet-e2e doctor                      Verify host is ready for the runner
   sheet-e2e run <TabName>               Run one mapped tab + sync
@@ -152,6 +160,9 @@ async function main() {
   switch (cmd) {
     case "init":
       await runInit(rest);
+      break;
+    case "uninstall":
+      await runUninstall(rest);
       break;
     case "doctor":
       await runDoctor();
