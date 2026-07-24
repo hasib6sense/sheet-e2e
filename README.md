@@ -2,6 +2,8 @@
 
 Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google Sheet sync, and CLI.
 
+**Start here (plain language):** [docs/HOW-IT-WORKS.md](./docs/HOW-IT-WORKS.md) — process, Dev vs QA, and why this package exists.
+
 ---
 
 ## 1. Installation
