@@ -38,6 +38,7 @@ export {
   createSheetsClient,
   listSheetTabNames,
   fetchImplementedTestCases,
+  fetchImplementedTestCasesWithMeta,
   fetchAllTestCases,
   fetchTabInfo,
   parsePlaywrightReport,

@@ -62,6 +62,41 @@ export function createSheetsClient(): sheets_v4.Sheets {
   return google.sheets({ version: "v4", auth });
 }
 
+function normalizeTabKey(name: string) {
+  return name.trim().toLowerCase().replace(/[_\s-]+/g, "");
+}
+
+/** Match tab-suites name to a real spreadsheet tab (Apply Leave ↔ Apply_Leave). */
+async function resolveSheetTabTitle(
+  sheets: sheets_v4.Sheets,
+  wanted: string,
+): Promise<{ title: string | null; warning?: string }> {
+  const spreadsheetId = getSpreadsheetId();
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets.properties.title",
+  });
+  const titles = (meta.data.sheets ?? [])
+    .map((s) => s.properties?.title ?? "")
+    .filter(Boolean);
+
+  if (titles.includes(wanted)) return { title: wanted };
+
+  const key = normalizeTabKey(wanted);
+  const fuzzy = titles.find((t) => normalizeTabKey(t) === key);
+  if (fuzzy) {
+    return {
+      title: fuzzy,
+      warning: `Tab suite "${wanted}" matched sheet tab "${fuzzy}". Prefer exact sheet tab names in e2e/tab-suites.json.`,
+    };
+  }
+
+  return {
+    title: null,
+    warning: `No spreadsheet tab matches "${wanted}". Check e2e/tab-suites.json against the sheet (e.g. Apply_Leave vs Apply Leave).`,
+  };
+}
+
 export async function listSheetTabNames(): Promise<string[]> {
   const sheets = createSheetsClient();
   const spreadsheetId = getSpreadsheetId();
@@ -151,7 +186,10 @@ function rowToTestCase(tab: string, row: string[], headers: string[]): E2eTestCa
 
 /** Sheet rows that match a TC declared in local Playwright spec files.
  *  Category === API rows are omitted (Playwright / runner are UI-only). */
-export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E2eTestCase[]> {
+export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): Promise<{
+  cases: E2eTestCase[];
+  warnings: string[];
+}> {
   const localIndex = indexLocalPlaywrightTests();
   let tabNames = [...localIndex.keys()];
 
@@ -162,14 +200,46 @@ export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E
 
   const sheets = createSheetsClient();
   const cases: E2eTestCase[] = [];
+  const warnings: string[] = [];
 
   for (const tab of tabNames) {
     const localEntries = localIndex.get(tab)!;
     const localKeys = new Set(localEntries.map((e) => normalizeTcId(e.testCaseId)));
 
+    const pushLocalOnly = () => {
+      for (const entry of localEntries) {
+        cases.push({
+          id: `${tab}::${entry.testCaseId}`,
+          tab,
+          testCaseId: entry.testCaseId,
+          testScenario: "",
+          testCase: entry.testCaseId,
+          category: "UI",
+          uiStatus: "",
+          playwright: "",
+          comment: "",
+          hasSpec: true,
+          implemented: true,
+          specFile: entry.specFile,
+          runnable: true,
+        });
+      }
+    };
+
     try {
-      const { headers, rows } = await readTabRows(sheets, tab);
-      if (!headers.length) continue;
+      const resolved = await resolveSheetTabTitle(sheets, tab);
+      if (resolved.warning) warnings.push(resolved.warning);
+      if (!resolved.title) {
+        pushLocalOnly();
+        continue;
+      }
+
+      const { headers, rows } = await readTabRows(sheets, resolved.title);
+      if (!headers.length) {
+        warnings.push(`Sheet tab "${resolved.title}" has no header row with Test Case ID.`);
+        pushLocalOnly();
+        continue;
+      }
 
       const sheetByTc = new Map<string, E2eTestCase>();
       const apiLocalKeys = new Set<string>();
@@ -191,7 +261,14 @@ export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E
 
         const fromSheet = sheetByTc.get(key);
         if (fromSheet) {
-          cases.push(fromSheet);
+          cases.push({
+            ...fromSheet,
+            tab,
+            hasSpec: true,
+            implemented: true,
+            runnable: true,
+            specFile: entry.specFile,
+          });
         } else {
           cases.push({
             id: `${tab}::${entry.testCaseId}`,
@@ -210,27 +287,17 @@ export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E
           });
         }
       }
-    } catch {
-      for (const entry of localEntries) {
-        cases.push({
-          id: `${tab}::${entry.testCaseId}`,
-          tab,
-          testCaseId: entry.testCaseId,
-          testScenario: "",
-          testCase: entry.testCaseId,
-          category: "UI",
-          uiStatus: "",
-          playwright: "",
-          comment: "",
-          hasSpec: true,
-          implemented: true,
-          specFile: entry.specFile,
-          runnable: true,
-        });
-      }
+    } catch (err) {
+      warnings.push(`Sheet read failed for "${tab}": ${(err as Error).message || String(err)}`);
+      pushLocalOnly();
     }
   }
 
+  return { cases, warnings };
+}
+
+export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E2eTestCase[]> {
+  const { cases } = await fetchImplementedTestCasesWithMeta(tabFilter);
   return cases;
 }
 
@@ -241,7 +308,7 @@ export async function fetchAllTestCases(tabFilter?: string[]): Promise<E2eTestCa
 
 export async function fetchTabInfo(): Promise<E2eTabInfo[]> {
   const localIndex = indexLocalPlaywrightTests();
-  const cases = await fetchImplementedTestCases();
+  const { cases } = await fetchImplementedTestCasesWithMeta();
 
   return [...localIndex.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -327,7 +394,12 @@ export async function syncTabResults(
   tab: string,
   resultsByTc: Map<string, ParsedResult>,
 ): Promise<number> {
-  const { headers, rows, headerRowNumber } = await readTabRows(sheets, tab);
+  const resolved = await resolveSheetTabTitle(sheets, tab);
+  if (!resolved.title) {
+    throw new Error(resolved.warning || `No spreadsheet tab matches "${tab}".`);
+  }
+  const sheetTab = resolved.title;
+  const { headers, rows, headerRowNumber } = await readTabRows(sheets, sheetTab);
 
   const idx = {
     tc: findColIndex(headers, COL.testCaseId),
@@ -338,7 +410,7 @@ export async function syncTabResults(
   };
 
   if (idx.tc < 0 || idx.uiStatus < 0 || idx.playwright < 0) {
-    throw new Error(`Tab "${tab}": missing required columns.`);
+    throw new Error(`Tab "${sheetTab}": missing required columns.`);
   }
 
   const batch: { range: string; values: string[][] }[] = [];
@@ -370,7 +442,7 @@ export async function syncTabResults(
 
     for (const w of writes) {
       batch.push({
-        range: `'${tab}'!${colLetter(w.col)}${sheetRow}`,
+        range: `'${sheetTab}'!${colLetter(w.col)}${sheetRow}`,
         values: [[w.value]],
       });
     }

@@ -76,7 +76,7 @@ Do these **after** `init` / `doctor` before using the runner:
 2. **Credentials** — place the Google service-account JSON at that path (never commit it).
 3. **Share sheet** — invite the service account email as **Editor**.
 4. **Auth setup** — edit `playwright-tests/auth.setup.ts` selectors/URL to match your sign-in page; set `TEST_SIGNIN_EMAIL` / `TEST_SIGNIN_PASSWORD` if needed.
-5. **Tab map** — edit `e2e/tab-suites.json` (real sheet tab names → spec files + `project`: `chromium` or `chromium-unauth`).
+5. **Tab map** — edit `e2e/tab-suites.json` using **exact Google Sheet tab titles** (e.g. `Apply_Leave`, `Forget_Password`, not `Apply Leave`). Wrong names show empty UI Status / Playwright / Comment (local-only fallback). The runner also fuzzy-matches spaces↔underscores and shows a warning banner.
 6. **Specs** — write Playwright UI tests (non-`API` Category rows). Use the Cursor skill; full sheet→spec codegen is separate.
 7. **Optional gate** — merge `e2e-gate.middleware.ts` into `middleware.ts` so `/e2e-runner` is off in production unless `E2E_RUNNER_ENABLED=1`.
 8. **Run**

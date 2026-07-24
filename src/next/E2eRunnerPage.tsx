@@ -153,6 +153,7 @@ export function E2eRunnerPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [syncSheet, setSyncSheet] = useState(true);
@@ -165,12 +166,14 @@ export function E2eRunnerPage() {
   const loadCases = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setWarnings([]);
     try {
       const res = await fetch("/api/e2e/cases");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load test cases");
       setCases(data.cases ?? []);
       setTabs(data.tabs ?? []);
+      setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -415,6 +418,17 @@ export function E2eRunnerPage() {
         {error && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-medium">Sheet warnings (status may show as — until fixed)</p>
+            <ul className="mt-1 list-disc pl-5">
+              {warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
           </div>
         )}
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchImplementedTestCases, fetchTabInfo } from "../google-sheets";
+import { clearConfigCache } from "../config";
+import { fetchImplementedTestCasesWithMeta, fetchTabInfo } from "../google-sheets";
 import { listMappedTabs, runE2eTests } from "../runner";
 import type { E2eRunRequest } from "../types";
 
@@ -25,6 +26,7 @@ function validateBody(body: E2eRunRequest): string | null {
 export function createCasesHandler() {
   return async function GET(request: Request) {
     try {
+      clearConfigCache();
       const { searchParams } = new URL(request.url);
       const tabsParam = searchParams.get("tabs");
       const tabFilter = tabsParam
@@ -34,12 +36,12 @@ export function createCasesHandler() {
             .filter(Boolean)
         : undefined;
 
-      const [cases, tabs] = await Promise.all([
-        fetchImplementedTestCases(tabFilter),
+      const [{ cases, warnings }, tabs] = await Promise.all([
+        fetchImplementedTestCasesWithMeta(tabFilter),
         fetchTabInfo(),
       ]);
 
-      return NextResponse.json({ cases, tabs });
+      return NextResponse.json({ cases, tabs, warnings });
     } catch (error) {
       return NextResponse.json({ error: (error as Error).message }, { status: 500 });
     }
@@ -49,6 +51,7 @@ export function createCasesHandler() {
 export function createTabsHandler() {
   return async function GET() {
     try {
+      clearConfigCache();
       const tabs = await fetchTabInfo();
       const mapped = listMappedTabs();
       return NextResponse.json({ tabs, mapped });
