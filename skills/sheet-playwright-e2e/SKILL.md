@@ -20,17 +20,29 @@ Override paths, base URL, and spreadsheet ID from the host repo / `.env` — do 
 
 ## Bootstrap (new project)
 
+### Installation
+
 ```bash
-npm i -D @6sense/sheet-e2e@github:hasib6sense/sheet-e2e#v0.1.6
-npx sheet-e2e init
+npm i -D github:hasib6sense/sheet-e2e#v0.1.6
+npx sheet-e2e init              # full host wiring (default)
+# npx sheet-e2e init --browsers # also install Playwright browsers
 npx sheet-e2e doctor
 ```
 
-`init` (full, default) wires the runner **and** host config: Playwright projects + `auth.setup`, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skill copy, optional e2e gate middleware template. Peers (`googleapis`, `@playwright/test`) are installed unless `--no-install`.
+Do **not** use `--force` if the host already has `playwright.config.ts` / `auth.setup.ts` you want to keep — init skips existing files.
 
-Still manual after init: spreadsheet ID, credentials file, share sheet with service account, tweak auth selectors, map real tabs in `tab-suites.json`, write real specs.
+### After installation (manual)
 
-Flags: `--minimal` (runner shell only), `--force`, `--browsers`.
+1. Set `GOOGLE_SPREADSHEET_ID` + `GOOGLE_APPLICATION_CREDENTIALS` in `.env`
+2. Place service-account JSON; share the sheet as **Editor**
+3. Tweak `playwright-tests/auth.setup.ts` for your sign-in UI
+4. Map tabs in `e2e/tab-suites.json` (`chromium` vs `chromium-unauth`)
+5. Write non-API Playwright specs (this skill)
+6. Open `/e2e-runner` or `npm run test:e2e`
+
+`init` already wires: runner page/APIs, scripts, peers, Playwright scaffold, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skill, optional e2e gate template.
+
+Flags: `--minimal`, `--force`, `--no-install`, `--browsers`.
 
 Host layout after init:
 
