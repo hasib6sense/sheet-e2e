@@ -97,53 +97,75 @@ function findGlobalsCss(cwd: string, appDir: string): string | null {
   return candidates.find((p) => existsSync(p)) ?? null;
 }
 
-function ensureTailwindSource(cwd: string, appDir: string) {
+function ensureTailwindConfigContent(cwd: string): boolean {
   const marker = "@6sense/sheet-e2e";
-  const globals = findGlobalsCss(cwd, appDir);
+  const entry = '"./node_modules/@6sense/sheet-e2e/src/**/*.{js,ts,jsx,tsx}"';
 
-  if (globals) {
-    let css = readFileSync(globals, "utf8");
-    if (css.includes(marker)) {
-      console.log(`  skip Tailwind @source (already set): ${rel(cwd, globals)}`);
-      return;
-    }
-    // Path from globals.css → node_modules (src/app → ../../node_modules)
-    const depth = relative(dirname(globals), cwd).split(/[/\\]/).filter(Boolean).length;
-    const up = depth === 0 ? "./" : "../".repeat(depth);
-    const sourceLine = `@source "${up}node_modules/@6sense/sheet-e2e/src";`;
-    if (/@import\s+["']tailwindcss["']/.test(css) || /@tailwind/.test(css)) {
-      if (/@import\s+["']tailwindcss["']/.test(css)) {
-        css = css.replace(
-          /(@import\s+["']tailwindcss["']\s*;?)/,
-          `$1\n${sourceLine}`,
-        );
-      } else {
-        css = `${sourceLine}\n${css}`;
-      }
-      writeFileSync(globals, css, "utf8");
-      console.log(`  updated: ${rel(cwd, globals)} (Tailwind @source)`);
-      return;
-    }
-  }
-
-  for (const name of ["tailwind.config.ts", "tailwind.config.js", "tailwind.config.mjs", "tailwind.config.cjs"]) {
+  for (const name of [
+    "tailwind.config.ts",
+    "tailwind.config.js",
+    "tailwind.config.mjs",
+    "tailwind.config.cjs",
+  ]) {
     const p = join(cwd, name);
     if (!existsSync(p)) continue;
+
     let content = readFileSync(p, "utf8");
     if (content.includes(marker)) {
       console.log(`  skip Tailwind content (already set): ${rel(cwd, p)}`);
-      return;
+      return true;
     }
-    const entry = '"./node_modules/@6sense/sheet-e2e/src/**/*.{js,ts,jsx,tsx}"';
-    if (/content\s*:\s*\[/.test(content)) {
-      content = content.replace(/content\s*:\s*\[/, `content: [${entry}, `);
-      writeFileSync(p, content, "utf8");
-      console.log(`  updated: ${rel(cwd, p)} (Tailwind content)`);
-      return;
+    if (!/content\s*:\s*\[/.test(content)) {
+      console.log(`  skip Tailwind content (no content array): ${rel(cwd, p)}`);
+      return false;
     }
+
+    content = content.replace(/content\s*:\s*\[/, `content: [${entry}, `);
+    writeFileSync(p, content, "utf8");
+    console.log(`  updated: ${rel(cwd, p)} (Tailwind content)`);
+    return true;
+  }
+  return false;
+}
+
+function ensureTailwindGlobalsSource(cwd: string, appDir: string): boolean {
+  const marker = "@6sense/sheet-e2e";
+  const globals = findGlobalsCss(cwd, appDir);
+  if (!globals) return false;
+
+  let css = readFileSync(globals, "utf8");
+  if (css.includes(marker)) {
+    console.log(`  skip Tailwind @source (already set): ${rel(cwd, globals)}`);
+    return true;
+  }
+  if (!/@import\s+["']tailwindcss["']/.test(css) && !/@tailwind/.test(css)) {
+    return false;
   }
 
-  console.log("  skip Tailwind (no globals.css / tailwind.config found — add package scan manually)");
+  // Path from globals.css → repo root → node_modules
+  const depth = relative(dirname(globals), cwd).split(/[/\\]/).filter(Boolean).length;
+  const up = depth === 0 ? "./" : "../".repeat(depth);
+  const sourceLine = `@source "${up}node_modules/@6sense/sheet-e2e/src";`;
+
+  if (/@import\s+["']tailwindcss["']/.test(css)) {
+    css = css.replace(/(@import\s+["']tailwindcss["']\s*;?)/, `$1\n${sourceLine}`);
+  } else {
+    css = `${sourceLine}\n${css}`;
+  }
+  writeFileSync(globals, css, "utf8");
+  console.log(`  updated: ${rel(cwd, globals)} (Tailwind @source)`);
+  return true;
+}
+
+/** Patch both globals.css @source (v4) and tailwind.config content (v3 / @config apps). */
+function ensureTailwindSource(cwd: string, appDir: string) {
+  const cssOk = ensureTailwindGlobalsSource(cwd, appDir);
+  const configOk = ensureTailwindConfigContent(cwd);
+  if (!cssOk && !configOk) {
+    console.log(
+      "  skip Tailwind (no globals.css @source and no tailwind.config content — add package scan manually)",
+    );
+  }
 }
 
 function mergeEnvKeys(cwd: string) {

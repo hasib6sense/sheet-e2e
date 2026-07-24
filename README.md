@@ -52,7 +52,7 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.6
 | Peers | Installs `googleapis` + `@playwright/test` unless `--no-install` |
 | Playwright | `playwright.config.ts` (setup / chromium / chromium-unauth + JSON reporter), `auth.setup.ts`, example spec |
 | Next | Adds `transpilePackages: ["@6sense/sheet-e2e"]` when possible |
-| Tailwind | Adds `@source` (v4) or `content` entry (v3) |
+| Tailwind | Adds `@source` in `globals.css` **and** `content` in `tailwind.config.*` when present |
 | Env | Creates/merges `.env` keys from template |
 | Git | Appends `.gitignore` (auth, results, credentials) |
 | Skill | Copies `.cursor/skills/sheet-playwright-e2e/` |
@@ -157,7 +157,7 @@ sheet-e2e sync --tabs "Holiday,Projects"
 
 ```bash
 # bump version in package.json, then:
-git tag v0.1.7
+git tag v0.1.8
 git push origin main --tags
 ```
 
