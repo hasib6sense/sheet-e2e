@@ -5,9 +5,9 @@ Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google
 ## Install (from Git)
 
 ```bash
-npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.2
+npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.4
 # or SSH:
-# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.2
+# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.4
 
 npm i -D googleapis @playwright/test
 npx sheet-e2e init

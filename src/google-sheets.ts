@@ -103,6 +103,11 @@ function isTcInLocalSpecs(tab: string, testCaseId: string): boolean {
   return local.some((e) => normalizeTcId(e.testCaseId) === key);
 }
 
+/** Playwright runner is UI-only — Category API rows stay out of the case list. */
+function isApiCategory(category: string): boolean {
+  return category.trim().toUpperCase() === "API";
+}
+
 function rowToTestCase(tab: string, row: string[], headers: string[]): E2eTestCase | null {
   const idx = {
     testScenario: findColIndex(headers, COL.testScenario),
@@ -144,7 +149,8 @@ function rowToTestCase(tab: string, row: string[], headers: string[]): E2eTestCa
   };
 }
 
-/** Sheet rows that match a TC declared in local Playwright spec files. */
+/** Sheet rows that match a TC declared in local Playwright spec files.
+ *  Category === API rows are omitted (Playwright / runner are UI-only). */
 export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E2eTestCase[]> {
   const localIndex = indexLocalPlaywrightTests();
   let tabNames = [...localIndex.keys()];
@@ -166,15 +172,23 @@ export async function fetchImplementedTestCases(tabFilter?: string[]): Promise<E
       if (!headers.length) continue;
 
       const sheetByTc = new Map<string, E2eTestCase>();
+      const apiLocalKeys = new Set<string>();
       for (const row of rows) {
         const tc = rowToTestCase(tab, row, headers);
-        if (tc && localKeys.has(normalizeTcId(tc.testCaseId))) {
-          sheetByTc.set(normalizeTcId(tc.testCaseId), tc);
+        if (!tc) continue;
+        const key = normalizeTcId(tc.testCaseId);
+        if (!localKeys.has(key)) continue;
+        if (isApiCategory(tc.category)) {
+          apiLocalKeys.add(key);
+          continue;
         }
+        sheetByTc.set(key, tc);
       }
 
       for (const entry of localEntries) {
         const key = normalizeTcId(entry.testCaseId);
+        if (apiLocalKeys.has(key)) continue;
+
         const fromSheet = sheetByTc.get(key);
         if (fromSheet) {
           cases.push(fromSheet);
