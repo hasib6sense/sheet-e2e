@@ -1,0 +1,8 @@
+# @6sense/sheet-e2e
+playwright/.auth/
+playwright-results.json
+playwright-report/
+test-results/
+blob-report/
+credentials/credentials.json
+.env

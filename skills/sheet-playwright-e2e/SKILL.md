@@ -21,22 +21,26 @@ Override paths, base URL, and spreadsheet ID from the host repo / `.env` — do 
 ## Bootstrap (new project)
 
 ```bash
-npm i -D @6sense/sheet-e2e@github:hasib6sense/sheet-e2e#v0.1.4
-npm i -D googleapis @playwright/test
+npm i -D @6sense/sheet-e2e@github:hasib6sense/sheet-e2e#v0.1.6
 npx sheet-e2e init
+npx sheet-e2e doctor
 ```
 
-Host requirements:
+`init` (full, default) wires the runner **and** host config: Playwright projects + `auth.setup`, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skill copy, optional e2e gate middleware template. Peers (`googleapis`, `@playwright/test`) are installed unless `--no-install`.
+
+Still manual after init: spreadsheet ID, credentials file, share sheet with service account, tweak auth selectors, map real tabs in `tab-suites.json`, write real specs.
+
+Flags: `--minimal` (runner shell only), `--force`, `--browsers`.
+
+Host layout after init:
 
 | Item | Notes |
 |------|--------|
 | `e2e/tab-suites.json` | Sheet tab → spec path(s), `project`, optional `workers` |
-| `.env` | `GOOGLE_SPREADSHEET_ID`, `GOOGLE_APPLICATION_CREDENTIALS` |
-| `playwright.config.ts` | JSON reporter → `playwright-results.json` (or `E2E_RESULTS_FILE`); `setup` + `chromium` + `chromium-unauth` projects |
-| `app/e2e-runner` + `app/api/e2e/*` | Thin re-exports from `@6sense/sheet-e2e/next` and `.../handlers` |
-| Next | `transpilePackages: ["@6sense/sheet-e2e"]`; Tailwind `@source` the package `src` |
-
-Share the spreadsheet with the service account as Editor. Never commit credentials.
+| `.env` | `GOOGLE_SPREADSHEET_ID`, `GOOGLE_APPLICATION_CREDENTIALS`, optional test creds |
+| `playwright.config.ts` | `setup` / `chromium` / `chromium-unauth` + JSON reporter |
+| `playwright-tests/auth.setup.ts` | Logged-in storage state |
+| `app/e2e-runner` + `app/api/e2e/*` | Thin re-exports from the package |
 
 ## Category filter (non-negotiable)
 

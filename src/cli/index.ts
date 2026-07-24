@@ -3,6 +3,7 @@ import { checkbox, confirm } from "@inquirer/prompts";
 import { clearConfigCache, getTabSuite, getTabSuites, loadConfig } from "../config";
 import { syncSheetsForTabs } from "../google-sheets";
 import { runE2eTests } from "../runner";
+import { runDoctor } from "./doctor";
 import { runInit } from "./init";
 
 function printHelp() {
@@ -10,7 +11,14 @@ function printHelp() {
 @6sense/sheet-e2e — Playwright e2e runner + Google Sheet sync
 
 Usage:
-  sheet-e2e init [--force]              Scaffold runner page, APIs, tab-suites
+  sheet-e2e init [--force] [--minimal] [--no-install] [--browsers]
+      Full host wiring by default (runner + Playwright + Next/Tailwind + env + skill).
+      --minimal     runner shell only (old behavior)
+      --force       overwrite existing scaffold files
+      --no-install  skip npm i -D googleapis @playwright/test
+      --browsers    also run npx playwright install
+
+  sheet-e2e doctor                      Verify host is ready for the runner
   sheet-e2e run <TabName>               Run one mapped tab + sync
   sheet-e2e select [--all]              Interactive / all / E2E_TABS multi-tab run
   sheet-e2e sync [--tabs a,b] [--report path]   Sync report → sheet
@@ -144,6 +152,9 @@ async function main() {
   switch (cmd) {
     case "init":
       await runInit(rest);
+      break;
+    case "doctor":
+      await runDoctor();
       break;
     case "run":
       await cmdRun(rest);
