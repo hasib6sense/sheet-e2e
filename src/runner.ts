@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getResultsFile, getTabSuite, getTabSuites } from "./config";
@@ -52,9 +53,16 @@ function runPlaywright(
   // Use stream-list so the log can show a spinner, then tick/cross when done.
   const env: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "1" };
   if (opts.onOutput) {
+    const resultsPath = resolve(process.cwd(), getResultsFile());
+    // Drop stale report so sync cannot apply a previous suite's TC_IDs to this tab.
+    try {
+      if (existsSync(resultsPath)) unlinkSync(resultsPath);
+    } catch {
+      /* ignore */
+    }
     rawArgs.push(`--reporter=json`);
     rawArgs.push(`--reporter=${STREAM_LIST_REPORTER}`);
-    env.PLAYWRIGHT_JSON_OUTPUT_FILE = resolve(process.cwd(), getResultsFile());
+    env.PLAYWRIGHT_JSON_OUTPUT_FILE = resultsPath;
   }
 
   const args = rawArgs.map((a) => (opts.grep && a === opts.grep ? shellQuote(a) : a));

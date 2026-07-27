@@ -2,10 +2,12 @@
  * Minimal Playwright reporter for the sheet-e2e UI stream.
  * Prints a running line on begin (list reporter skips this when not a TTY),
  * then pass/fail on end so the log can show spinner → tick.
+ * Retries reuse the same index so counts stay at unique tests.
  */
 class StreamListReporter {
   constructor() {
     this._resultIndex = new Map();
+    this._testIndex = new Map();
     this._n = 0;
   }
 
@@ -14,7 +16,12 @@ class StreamListReporter {
   }
 
   onTestBegin(test, result) {
-    const index = String(++this._n);
+    const testKey = test.id || test.titlePath?.().join("\0") || test.title;
+    let index = this._testIndex.get(testKey);
+    if (!index) {
+      index = String(++this._n);
+      this._testIndex.set(testKey, index);
+    }
     this._resultIndex.set(result, index);
     process.stdout.write(`  …  ${index} ${this._title(test)}\n`);
   }

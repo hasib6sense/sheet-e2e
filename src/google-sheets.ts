@@ -422,14 +422,25 @@ function extractTcId(title: string) {
   return m ? m[1] : null;
 }
 
-type ParsedResult = { tcId: string; status: string; error: string; title: string };
+type ParsedResult = {
+  tcId: string;
+  status: string;
+  error: string;
+  title: string;
+  /** Spec file from the Playwright JSON report, when available */
+  file?: string;
+};
 
 function walkSuites(
-  suite: { specs?: unknown[]; suites?: unknown[] },
+  suite: { title?: string; file?: string; specs?: unknown[]; suites?: unknown[] },
   out: Map<string, ParsedResult>,
+  inheritedFile = "",
 ) {
+  const suiteFile = suite.file || inheritedFile;
+
   for (const spec of (suite.specs ?? []) as {
     title?: string;
+    file?: string;
     tests?: {
       projectName?: string;
       results?: { status?: string; errors?: { message?: string }[] }[];
@@ -446,14 +457,17 @@ function walkSuites(
     if (!chromiumTest) continue;
 
     const results = chromiumTest.results ?? [];
-    const failed = results.some((r) => r.status === "failed" || r.status === "timedOut");
+    // Final attempt wins (retries must not keep an earlier failure as the sheet status).
     const last = results[results.length - 1];
-    const status = failed ? "failed" : (last?.status ?? "skipped");
+    let status = last?.status ?? "skipped";
+    if (status === "timedOut" || status === "interrupted") status = "failed";
 
     let error = "";
-    for (const r of results) {
-      for (const e of r.errors ?? []) {
-        if (e.message) error = error ? `${error}\n---\n${e.message}` : e.message;
+    if (status === "failed") {
+      for (const r of results) {
+        for (const e of r.errors ?? []) {
+          if (e.message) error = error ? `${error}\n---\n${e.message}` : e.message;
+        }
       }
     }
 
@@ -462,22 +476,42 @@ function walkSuites(
       title: spec.title ?? "",
       status,
       error: error.trim(),
+      file: spec.file || suiteFile || undefined,
     });
   }
 
-  for (const child of (suite.suites ?? []) as { specs?: unknown[]; suites?: unknown[] }[]) {
-    walkSuites(child, out);
+  for (const child of (suite.suites ?? []) as {
+    title?: string;
+    file?: string;
+    specs?: unknown[];
+    suites?: unknown[];
+  }[]) {
+    walkSuites(child, out, suiteFile);
   }
 }
 
 export function parsePlaywrightReport(reportPath: string): Map<string, ParsedResult> {
   const raw = readFileSync(reportPath, "utf8");
-  const report = JSON.parse(raw) as { suites?: { specs?: unknown[]; suites?: unknown[] }[] };
+  const report = JSON.parse(raw) as {
+    suites?: { title?: string; file?: string; specs?: unknown[]; suites?: unknown[] }[];
+  };
   const byTc = new Map<string, ParsedResult>();
   for (const suite of report.suites ?? []) {
     walkSuites(suite, byTc);
   }
   return byTc;
+}
+
+function resultBelongsToTab(result: ParsedResult, tab: string): boolean {
+  const suite = getTabSuite(tab);
+  if (!suite?.specs?.length) return true;
+  if (!result.file) return true;
+
+  const file = result.file.replace(/\\/g, "/");
+  return suite.specs.some((spec) => {
+    const norm = spec.replace(/\\/g, "/").replace(/^\.\//, "");
+    return file === norm || file.endsWith(`/${norm}`) || file.endsWith(norm);
+  });
 }
 
 export async function syncTabResults(
@@ -519,6 +553,7 @@ export async function syncTabResults(
 
     const result = resultsByTc.get(normalizeTcId(tcRaw));
     if (!result) continue;
+    if (!resultBelongsToTab(result, tab)) continue;
 
     const uiStatus = result.status === "passed" ? "Passed" : "Failed";
     const playwright = "Implemented";
@@ -574,7 +609,14 @@ export async function syncSheetsForTabs(
   for (const tab of tabs) {
     try {
       const n = await syncTabResults(sheets, tab, resultsByTc);
-      summary.push(`${tab}: ${n} row(s) updated`);
+      if (n === 0) {
+        const forTab = [...resultsByTc.values()].filter((r) => resultBelongsToTab(r, tab)).length;
+        summary.push(
+          `${tab}: 0 row(s) updated (${resultsByTc.size} TC(s) in report, ${forTab} matched this tab's specs)`,
+        );
+      } else {
+        summary.push(`${tab}: ${n} row(s) updated`);
+      }
     } catch (err) {
       summary.push(`${tab}: sync failed — ${(err as Error).message}`);
     }

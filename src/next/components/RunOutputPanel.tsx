@@ -23,13 +23,32 @@ function parseRunStats(log: string) {
   const clean = stripAnsi(log);
   const passedMatches = [...clean.matchAll(/^\s*(\d+)\s+passed\b/gim)];
   const failedMatches = [...clean.matchAll(/^\s*(\d+)\s+failed\b/gim)];
-  const passedFromLines = (clean.match(/^\s*[✓✔ok]\s+\d+/gim) ?? []).length;
-  const failedFromLines = (clean.match(/^\s*[x✘✕]\s+\d+/gim) ?? []).length;
+  if (passedMatches.length || failedMatches.length) {
+    return {
+      passed: sumMatches(passedMatches),
+      failed: sumMatches(failedMatches),
+    };
+  }
 
-  return {
-    passed: passedMatches.length ? sumMatches(passedMatches) : passedFromLines,
-    failed: failedMatches.length ? sumMatches(failedMatches) : failedFromLines,
-  };
+  // Unique by test index — last status wins (retries must not double-count).
+  const byIndex = new Map<string, "pass" | "fail">();
+  for (const line of clean.split("\n")) {
+    const m = line.match(/^\s*([✓✔✘✕x-]|ok)\s+(\d+)\b/i);
+    if (!m) continue;
+    const mark = m[1];
+    const idx = m[2];
+    if (mark === "-") continue;
+    if (/[✓✔]/u.test(mark) || mark.toLowerCase() === "ok") byIndex.set(idx, "pass");
+    else byIndex.set(idx, "fail");
+  }
+
+  let passed = 0;
+  let failed = 0;
+  for (const status of byIndex.values()) {
+    if (status === "pass") passed += 1;
+    else failed += 1;
+  }
+  return { passed, failed };
 }
 
 export function RunOutputPanel({
