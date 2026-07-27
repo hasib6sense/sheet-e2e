@@ -152,6 +152,10 @@ export function E2eRunnerPage() {
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  /** Which control started the active run — spinner only on that control. */
+  const [runTarget, setRunTarget] = useState<"all" | "failed" | "checked" | string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -294,8 +298,10 @@ export function E2eRunnerPage() {
       tabs?: string[];
       cases?: { tab: string; testCaseId: string }[];
     },
+    target: "all" | "failed" | "checked" | string,
   ) => {
     setRunning(true);
+    setRunTarget(target);
     setRunLog("");
     setRunLabel(label);
     setLastExitCode(null);
@@ -359,6 +365,7 @@ export function E2eRunnerPage() {
       setError((err as Error).message);
     } finally {
       setRunning(false);
+      setRunTarget(null);
     }
   };
 
@@ -368,15 +375,19 @@ export function E2eRunnerPage() {
       selectedModules.length === 1
         ? `Running all tests in ${selectedModules[0]}…`
         : `Running all tests in ${selectedModules.join(", ")}…`;
-    void executeRun(label, { mode: "tabs", tabs: selectedModules });
+    void executeRun(label, { mode: "tabs", tabs: selectedModules }, "all");
   };
 
   const runChecked = () => {
     if (!checkedInView.length) return;
-    void executeRun(`Running ${checkedInView.length} checked test(s)…`, {
-      mode: "cases",
-      cases: checkedInView.map((c) => ({ tab: c.tab, testCaseId: c.testCaseId })),
-    });
+    void executeRun(
+      `Running ${checkedInView.length} checked test(s)…`,
+      {
+        mode: "cases",
+        cases: checkedInView.map((c) => ({ tab: c.tab, testCaseId: c.testCaseId })),
+      },
+      "checked",
+    );
   };
 
   const runFailed = () => {
@@ -385,17 +396,25 @@ export function E2eRunnerPage() {
       selectedModules.length === 1
         ? `Running ${failedInModules.length} failed test(s) in ${selectedModules[0]}…`
         : `Running ${failedInModules.length} failed test(s) across ${selectedModules.length} modules…`;
-    void executeRun(label, {
-      mode: "cases",
-      cases: failedInModules.map((c) => ({ tab: c.tab, testCaseId: c.testCaseId })),
-    });
+    void executeRun(
+      label,
+      {
+        mode: "cases",
+        cases: failedInModules.map((c) => ({ tab: c.tab, testCaseId: c.testCaseId })),
+      },
+      "failed",
+    );
   };
 
   const runOne = (tc: E2eTestCase) => {
-    void executeRun(`Running ${tc.testCaseId} (${tc.tab})…`, {
-      mode: "cases",
-      cases: [{ tab: tc.tab, testCaseId: tc.testCaseId }],
-    });
+    void executeRun(
+      `Running ${tc.testCaseId} (${tc.tab})…`,
+      {
+        mode: "cases",
+        cases: [{ tab: tc.tab, testCaseId: tc.testCaseId }],
+      },
+      tc.id,
+    );
   };
 
   const colSpan = showModuleColumn ? 8 : 7;
@@ -486,7 +505,7 @@ export function E2eRunnerPage() {
             disabled={running || !selectedModules.length}
             onClick={runAllInModules}
           >
-            {running ? <IconSpinner /> : <IconPlay />}
+            {runTarget === "all" ? <IconSpinner /> : <IconPlay />}
             <span>
               Run all
               {selectedModules.length === 1
@@ -505,7 +524,7 @@ export function E2eRunnerPage() {
                 : `Re-run ${failedInModules.length} test(s) with UI Status Failed`
             }
           >
-            <IconXCircle />
+            {runTarget === "failed" ? <IconSpinner /> : <IconXCircle />}
             <span>
               Run failed
               {failedInModules.length > 0 ? ` (${failedInModules.length})` : ""}
@@ -525,7 +544,7 @@ export function E2eRunnerPage() {
             disabled={running || checkedInView.length === 0}
             onClick={runChecked}
           >
-            <IconPlay />
+            {runTarget === "checked" ? <IconSpinner /> : <IconPlay />}
             <span>
               Run checked
               {checkedInView.length > 0 ? ` (${checkedInView.length})` : ""}
@@ -632,7 +651,11 @@ export function E2eRunnerPage() {
                         disabled={running}
                         onClick={() => runOne(tc)}
                       >
-                        {running ? <IconSpinner className="h-3.5 w-3.5" /> : <IconPlay className="h-3.5 w-3.5" />}
+                        {runTarget === tc.id ? (
+                          <IconSpinner className="h-3.5 w-3.5" />
+                        ) : (
+                          <IconPlay className="h-3.5 w-3.5" />
+                        )}
                         <span>Run</span>
                       </Btn>
                     </td>
