@@ -507,10 +507,19 @@ function resultBelongsToTab(result: ParsedResult, tab: string): boolean {
   if (!suite?.specs?.length) return true;
   if (!result.file) return true;
 
+  // Playwright JSON often stores file relative to testDir (e.g. "signin.spec.ts"),
+  // while tab-suites uses repo-relative paths ("playwright-tests/signin.spec.ts").
   const file = result.file.replace(/\\/g, "/");
+  const fileBase = file.split("/").pop() ?? file;
   return suite.specs.some((spec) => {
     const norm = spec.replace(/\\/g, "/").replace(/^\.\//, "");
-    return file === norm || file.endsWith(`/${norm}`) || file.endsWith(norm);
+    const specBase = norm.split("/").pop() ?? norm;
+    return (
+      file === norm ||
+      file.endsWith(`/${norm}`) ||
+      norm.endsWith(`/${file}`) ||
+      fileBase === specBase
+    );
   });
 }
 
