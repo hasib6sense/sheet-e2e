@@ -66,12 +66,36 @@ function normalizeTabKey(name: string) {
   return name.trim().toLowerCase().replace(/[_\s-]+/g, "");
 }
 
-/** Match tab-suites name to a real spreadsheet tab (Apply Leave ↔ Apply_Leave). */
-async function resolveSheetTabTitle(
-  sheets: sheets_v4.Sheets,
-  wanted: string,
-): Promise<{ title: string | null; warning?: string }> {
+type TitlesCache = { at: number; titles: string[]; spreadsheetId: string };
+let titlesCache: TitlesCache | null = null;
+
+type CasesCache = {
+  at: number;
+  key: string;
+  cases: E2eTestCase[];
+  warnings: string[];
+};
+let casesCache: CasesCache | null = null;
+
+const TITLES_TTL_MS = 60_000;
+/** Avoid hammering Sheets on rapid runner refreshes (quota is 60 reads/min/user). */
+const CASES_TTL_MS = 30_000;
+
+export function clearSheetCaches() {
+  titlesCache = null;
+  casesCache = null;
+}
+
+async function getSpreadsheetTitles(sheets: sheets_v4.Sheets): Promise<string[]> {
   const spreadsheetId = getSpreadsheetId();
+  if (
+    titlesCache &&
+    titlesCache.spreadsheetId === spreadsheetId &&
+    Date.now() - titlesCache.at < TITLES_TTL_MS
+  ) {
+    return titlesCache.titles;
+  }
+
   const meta = await sheets.spreadsheets.get({
     spreadsheetId,
     fields: "sheets.properties.title",
@@ -79,7 +103,14 @@ async function resolveSheetTabTitle(
   const titles = (meta.data.sheets ?? [])
     .map((s) => s.properties?.title ?? "")
     .filter(Boolean);
+  titlesCache = { at: Date.now(), titles, spreadsheetId };
+  return titles;
+}
 
+function matchSheetTabTitle(
+  titles: string[],
+  wanted: string,
+): { title: string | null; warning?: string } {
   if (titles.includes(wanted)) return { title: wanted };
 
   const key = normalizeTabKey(wanted);
@@ -97,22 +128,23 @@ async function resolveSheetTabTitle(
   };
 }
 
-export async function listSheetTabNames(): Promise<string[]> {
-  const sheets = createSheetsClient();
-  const spreadsheetId = getSpreadsheetId();
-  const skip = getSkipTabs();
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
-  return (meta.data.sheets ?? [])
-    .map((s) => s.properties?.title ?? "")
-    .filter((name) => name && !skip.has(name));
+/** Match tab-suites name to a real spreadsheet tab (Apply Leave ↔ Apply_Leave). */
+async function resolveSheetTabTitle(
+  sheets: sheets_v4.Sheets,
+  wanted: string,
+): Promise<{ title: string | null; warning?: string }> {
+  const titles = await getSpreadsheetTitles(sheets);
+  return matchSheetTabTitle(titles, wanted);
 }
 
-async function readTabRows(sheets: sheets_v4.Sheets, tab: string) {
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: getSpreadsheetId(),
-    range: `'${tab}'`,
-  });
-  const allRows = (res.data.values ?? []) as string[][];
+export async function listSheetTabNames(): Promise<string[]> {
+  const sheets = createSheetsClient();
+  const skip = getSkipTabs();
+  const titles = await getSpreadsheetTitles(sheets);
+  return titles.filter((name) => name && !skip.has(name));
+}
+
+function parseTabRows(allRows: string[][]) {
   if (!allRows.length) {
     return { headers: [] as string[], rows: [] as string[][], headerRowNumber: 1 };
   }
@@ -127,8 +159,34 @@ async function readTabRows(sheets: sheets_v4.Sheets, tab: string) {
 
   const headers = allRows[headerIndex] ?? [];
   const rows = allRows.slice(headerIndex + 1);
-  const headerRowNumber = headerIndex + 1;
-  return { headers, rows, headerRowNumber };
+  return { headers, rows, headerRowNumber: headerIndex + 1 };
+}
+
+async function readTabRows(sheets: sheets_v4.Sheets, tab: string) {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getSpreadsheetId(),
+    range: `'${tab}'`,
+  });
+  return parseTabRows((res.data.values ?? []) as string[][]);
+}
+
+async function readTabsRowsBatch(
+  sheets: sheets_v4.Sheets,
+  tabs: string[],
+): Promise<Map<string, ReturnType<typeof parseTabRows>>> {
+  const out = new Map<string, ReturnType<typeof parseTabRows>>();
+  if (!tabs.length) return out;
+
+  const res = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: getSpreadsheetId(),
+    ranges: tabs.map((t) => `'${t}'`),
+  });
+
+  for (let i = 0; i < tabs.length; i += 1) {
+    const values = (res.data.valueRanges?.[i]?.values ?? []) as string[][];
+    out.set(tabs[i], parseTabRows(values));
+  }
+  return out;
 }
 
 function isTcInLocalSpecs(tab: string, testCaseId: string): boolean {
@@ -198,49 +256,74 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
     tabNames = tabNames.filter((t) => wanted.has(t.toLowerCase()));
   }
 
+  const cacheKey = `${getSpreadsheetId()}::${tabNames.slice().sort().join("|")}`;
+  if (
+    casesCache &&
+    casesCache.key === cacheKey &&
+    Date.now() - casesCache.at < CASES_TTL_MS
+  ) {
+    return { cases: casesCache.cases, warnings: casesCache.warnings };
+  }
+
   const sheets = createSheetsClient();
   const cases: E2eTestCase[] = [];
   const warnings: string[] = [];
 
-  for (const tab of tabNames) {
-    const localEntries = localIndex.get(tab)!;
-    const localKeys = new Set(localEntries.map((e) => normalizeTcId(e.testCaseId)));
+  const pushLocalOnly = (tab: string, localEntries: { testCaseId: string; specFile: string }[]) => {
+    for (const entry of localEntries) {
+      cases.push({
+        id: `${tab}::${entry.testCaseId}`,
+        tab,
+        testCaseId: entry.testCaseId,
+        testScenario: "",
+        testCase: entry.testCaseId,
+        category: "UI",
+        uiStatus: "",
+        playwright: "",
+        comment: "",
+        hasSpec: true,
+        implemented: true,
+        specFile: entry.specFile,
+        runnable: true,
+      });
+    }
+  };
 
-    const pushLocalOnly = () => {
-      for (const entry of localEntries) {
-        cases.push({
-          id: `${tab}::${entry.testCaseId}`,
-          tab,
-          testCaseId: entry.testCaseId,
-          testScenario: "",
-          testCase: entry.testCaseId,
-          category: "UI",
-          uiStatus: "",
-          playwright: "",
-          comment: "",
-          hasSpec: true,
-          implemented: true,
-          specFile: entry.specFile,
-          runnable: true,
-        });
-      }
-    };
+  try {
+    const titles = await getSpreadsheetTitles(sheets);
+    const resolvedBySuite = new Map<string, { title: string | null; warning?: string }>();
+    const sheetTabsToRead: string[] = [];
 
-    try {
-      const resolved = await resolveSheetTabTitle(sheets, tab);
+    for (const tab of tabNames) {
+      const resolved = matchSheetTabTitle(titles, tab);
+      resolvedBySuite.set(tab, resolved);
       if (resolved.warning) warnings.push(resolved.warning);
+      if (resolved.title) sheetTabsToRead.push(resolved.title);
+    }
+
+    const uniqueSheetTabs = [...new Set(sheetTabsToRead)];
+    const rowsBySheetTab = await readTabsRowsBatch(sheets, uniqueSheetTabs);
+
+    for (const tab of tabNames) {
+      const localEntries = localIndex.get(tab)!;
+      const localKeys = new Set(localEntries.map((e) => normalizeTcId(e.testCaseId)));
+      const resolved = resolvedBySuite.get(tab)!;
+
       if (!resolved.title) {
-        pushLocalOnly();
+        pushLocalOnly(tab, localEntries);
         continue;
       }
 
-      const { headers, rows } = await readTabRows(sheets, resolved.title);
-      if (!headers.length) {
-        warnings.push(`Sheet tab "${resolved.title}" has no header row with Test Case ID.`);
-        pushLocalOnly();
+      const parsed = rowsBySheetTab.get(resolved.title);
+      if (!parsed || !parsed.headers.length) {
+        warnings.push(
+          `Sheet tab "${resolved.title}" has no header row with Test Case ID.`,
+        );
+        pushLocalOnly(tab, localEntries);
         continue;
       }
 
+      const { headers, rows } = parsed;
       const sheetByTc = new Map<string, E2eTestCase>();
       const apiLocalKeys = new Set<string>();
       for (const row of rows) {
@@ -287,12 +370,16 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
           });
         }
       }
-    } catch (err) {
-      warnings.push(`Sheet read failed for "${tab}": ${(err as Error).message || String(err)}`);
-      pushLocalOnly();
+    }
+  } catch (err) {
+    const msg = (err as Error).message || String(err);
+    for (const tab of tabNames) {
+      warnings.push(`Sheet read failed for "${tab}": ${msg}`);
+      pushLocalOnly(tab, localIndex.get(tab)!);
     }
   }
 
+  casesCache = { at: Date.now(), key: cacheKey, cases, warnings };
   return { cases, warnings };
 }
 
@@ -306,10 +393,9 @@ export async function fetchAllTestCases(tabFilter?: string[]): Promise<E2eTestCa
   return fetchImplementedTestCases(tabFilter);
 }
 
-export async function fetchTabInfo(): Promise<E2eTabInfo[]> {
+/** Build module dropdown stats from an already-fetched case list (no extra sheet reads). */
+export function buildTabInfoFromCases(cases: E2eTestCase[]): E2eTabInfo[] {
   const localIndex = indexLocalPlaywrightTests();
-  const { cases } = await fetchImplementedTestCasesWithMeta();
-
   return [...localIndex.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, entries]) => {
@@ -324,6 +410,11 @@ export async function fetchTabInfo(): Promise<E2eTabInfo[]> {
         runnableCount: tabCases.filter((c) => c.runnable).length,
       };
     });
+}
+
+export async function fetchTabInfo(): Promise<E2eTabInfo[]> {
+  const { cases } = await fetchImplementedTestCasesWithMeta();
+  return buildTabInfoFromCases(cases);
 }
 
 function extractTcId(title: string) {
@@ -489,5 +580,6 @@ export async function syncSheetsForTabs(
     }
   }
 
+  clearSheetCaches();
   return summary;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearConfigCache } from "../config";
-import { fetchImplementedTestCasesWithMeta, fetchTabInfo } from "../google-sheets";
+import { fetchImplementedTestCasesWithMeta, buildTabInfoFromCases, fetchTabInfo } from "../google-sheets";
 import { listMappedTabs, runE2eTests } from "../runner";
 import type { E2eRunRequest } from "../types";
 
@@ -36,10 +36,9 @@ export function createCasesHandler() {
             .filter(Boolean)
         : undefined;
 
-      const [{ cases, warnings }, tabs] = await Promise.all([
-        fetchImplementedTestCasesWithMeta(tabFilter),
-        fetchTabInfo(),
-      ]);
+      // One sheet pass only — fetchTabInfo used to call the same reader again and burn quota.
+      const { cases, warnings } = await fetchImplementedTestCasesWithMeta(tabFilter);
+      const tabs = buildTabInfoFromCases(cases);
 
       return NextResponse.json({ cases, tabs, warnings });
     } catch (error) {

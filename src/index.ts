@@ -41,6 +41,8 @@ export {
   fetchImplementedTestCasesWithMeta,
   fetchAllTestCases,
   fetchTabInfo,
+  buildTabInfoFromCases,
+  clearSheetCaches,
   parsePlaywrightReport,
   syncTabResults,
   syncSheetsForTabs,
