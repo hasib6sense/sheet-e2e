@@ -85,6 +85,7 @@ export function RunLog({ text, expanded = false, running = false }: RunLogProps)
   const ref = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => buildDisplayRows(text), [text]);
   const hasLiveRunning = rows.some((r) => r.kind === "running");
+  const runFinishedInLog = /Exit code:/i.test(text) || /--- Syncing/i.test(text);
 
   useEffect(() => {
     const el = ref.current;
@@ -123,7 +124,7 @@ export function RunLog({ text, expanded = false, running = false }: RunLogProps)
         );
       })}
 
-      {running && !hasLiveRunning && (
+      {running && !hasLiveRunning && !runFinishedInLog && (
         <div className="mt-1 flex gap-2 text-sky-300">
           <Spinner />
           <span>Waiting for tests…</span>

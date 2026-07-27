@@ -354,6 +354,9 @@ export function E2eRunnerPage() {
             const code = event.exitCode ?? 1;
             setLastExitCode(code);
             appendLog(`\nExit code: ${code}\n`);
+            // End "running" UI as soon as Playwright finishes — don't wait for sheet case refresh.
+            setRunning(false);
+            setRunTarget(null);
           }
         }
       }
