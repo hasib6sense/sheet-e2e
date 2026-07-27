@@ -10,6 +10,10 @@ const STREAM_LIST_REPORTER = join(
   dirname(fileURLToPath(import.meta.url)),
   "reporters/stream-list.cjs",
 );
+const JSON_FILE_REPORTER = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "reporters/json-file.cjs",
+);
 
 function grepPatternForIds(testCaseIds: string[]): string {
   const parts = testCaseIds.map((id) => {
@@ -60,8 +64,8 @@ function runPlaywright(
     } catch {
       /* ignore */
     }
-    rawArgs.push(`--reporter=json`);
-    rawArgs.push(`--reporter=${STREAM_LIST_REPORTER}`);
+    // Playwright CLI keeps only the last `--reporter` flag — use a comma list.
+    rawArgs.push(`--reporter=${JSON_FILE_REPORTER},${STREAM_LIST_REPORTER}`);
     env.PLAYWRIGHT_JSON_OUTPUT_FILE = resultsPath;
   }
 
