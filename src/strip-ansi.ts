@@ -2,6 +2,7 @@
 export { stripAnsi } from "./format-error";
 
 export type LogLineKind =
+  | "running"
   | "pass"
   | "fail"
   | "summary-pass"
@@ -18,6 +19,10 @@ export function classifyLogLine(line: string): LogLineKind {
   if (/^---/.test(t)) return "section";
   if (/Exit code:\s*0/.test(t)) return "summary-pass";
   if (/Exit code:/.test(t)) return "summary-fail";
+  // Running marker from stream-list reporter (ellipsis)
+  if (/^[…⋯]/.test(t) || /^\.\.\.\s+\d+/.test(t)) return "running";
+  if (/^[✓✔]/.test(t) || /\bok\s+\d+/i.test(t)) return "pass";
+  if (/^[✘✕]/.test(t) || /^\s*x\s+\d/i.test(line)) return "fail";
   if (/✓/.test(line) || /\bok\s+\d+/i.test(t)) return "pass";
   if (/✘/.test(line) || /^\s*x\s+\d/i.test(line)) return "fail";
   if (/\d+\s+passed/i.test(t) && !/failed/i.test(t)) return "summary-pass";
@@ -27,6 +32,7 @@ export function classifyLogLine(line: string): LogLineKind {
 }
 
 export const LOG_LINE_CLASS: Record<LogLineKind, string> = {
+  running: "text-sky-300",
   pass: "text-emerald-400",
   fail: "text-red-400",
   "summary-pass": "text-emerald-300 font-semibold",
@@ -36,3 +42,9 @@ export const LOG_LINE_CLASS: Record<LogLineKind, string> = {
   muted: "text-neutral-500",
   default: "text-neutral-200",
 };
+
+/** Extract Playwright list/stream test index from a line, if present. */
+export function testLineIndex(line: string): string | null {
+  const m = line.match(/^\s*(?:[…⋯✓✔✘✕x-]|ok)\s+(\d+)\b/i);
+  return m?.[1] ?? null;
+}

@@ -1,7 +1,14 @@
 import { spawn } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getResultsFile, getTabSuite, getTabSuites } from "./config";
 import { syncSheetsForTabs } from "./google-sheets";
 import type { E2eRunRequest, E2eRunResult, E2eTabSuite } from "./types";
+
+const STREAM_LIST_REPORTER = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "reporters/stream-list.cjs",
+);
 
 function grepPatternForIds(testCaseIds: string[]): string {
   const parts = testCaseIds.map((id) => {
@@ -41,12 +48,21 @@ function runPlaywright(
   if (opts.workers != null) rawArgs.push(`--workers=${opts.workers}`);
   if (opts.grep) rawArgs.push("--grep", opts.grep);
 
+  // Piped UI runs are non-TTY — Playwright's list reporter skips "test started" lines.
+  // Use stream-list so the log can show a spinner, then tick/cross when done.
+  const env: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "1" };
+  if (opts.onOutput) {
+    rawArgs.push(`--reporter=json`);
+    rawArgs.push(`--reporter=${STREAM_LIST_REPORTER}`);
+    env.PLAYWRIGHT_JSON_OUTPUT_FILE = resolve(process.cwd(), getResultsFile());
+  }
+
   const args = rawArgs.map((a) => (opts.grep && a === opts.grep ? shellQuote(a) : a));
   teeOutput(`\n> npx ${args.join(" ")}\n\n`, opts.onOutput);
 
-  return new Promise((resolve) => {
+  return new Promise((resolvePromise) => {
     if (opts.signal?.aborted) {
-      resolve({ exitCode: 130, output: "\nAborted before Playwright started.\n" });
+      resolvePromise({ exitCode: 130, output: "\nAborted before Playwright started.\n" });
       return;
     }
 
@@ -55,7 +71,7 @@ function runPlaywright(
     const child = spawn("npx", args, {
       cwd: process.cwd(),
       shell: true,
-      env: { ...process.env, FORCE_COLOR: "1" },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -63,7 +79,7 @@ function runPlaywright(
       if (settled) return;
       settled = true;
       opts.signal?.removeEventListener("abort", onAbort);
-      resolve({ exitCode, output });
+      resolvePromise({ exitCode, output });
     };
 
     const onAbort = () => {

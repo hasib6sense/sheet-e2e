@@ -118,7 +118,7 @@ export function RunOutputPanel({
       </div>
 
       <div className="p-2">
-        <RunLog text={runLog} expanded={expanded} />
+        <RunLog text={runLog} expanded={expanded} running={running} />
       </div>
     </section>
   );
