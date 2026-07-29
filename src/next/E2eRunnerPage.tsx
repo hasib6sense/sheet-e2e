@@ -489,7 +489,7 @@ export function E2eRunnerPage() {
     );
   };
 
-  const colSpan = showModuleColumn ? 9 : 8;
+  const colSpan = (showModuleColumn ? 8 : 7);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -682,8 +682,9 @@ export function E2eRunnerPage() {
                 <th className="w-24 px-3 py-3">TC ID</th>
                 <th className="w-28 px-3 py-3">Category</th>
                 <th className="px-3 py-3">Test case</th>
-                <th className="w-24 px-3 py-3">UI Status</th>
-                <th className="w-28 px-3 py-3">Playwright</th>
+                <th className="w-28 px-3 py-3">
+                  {isUnitTestEngine ? "UI Status" : "Playwright"}
+                </th>
                 <th className="min-w-32 px-3 py-3">Comment</th>
                 <th className="w-20 px-3 py-3 text-right">Action</th>
               </tr>
@@ -726,8 +727,9 @@ export function E2eRunnerPage() {
                     <td className="px-3 py-2" title={tc.testCase}>
                       {tc.testCase}
                     </td>
-                    <td className="px-3 py-2">{statusBadge(tc.uiStatus)}</td>
-                    <td className="px-3 py-2">{statusBadge(tc.playwright)}</td>
+                    <td className="px-3 py-2">
+                      {statusBadge(isUnitTestEngine ? tc.uiStatus : tc.playwright)}
+                    </td>
                     <td className="max-w-md px-3 py-2 text-xs text-neutral-600" title={tc.comment}>
                       {tc.comment ? formatErrorForSheet(tc.comment) : "—"}
                     </td>
