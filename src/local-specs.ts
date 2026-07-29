@@ -6,14 +6,18 @@ export function normalizeTcId(id: string) {
   return id.trim().replace(/[-_\s]/g, "").toLowerCase();
 }
 
-/** TC ids declared in a spec via test("TC_001: ...") or test("TC-001: ...") */
+/** TC ids declared in a spec via test("TC_001: ...") or test("TC-001: ...").
+ *  Commented-out tests are ignored so fully-disabled specs do not appear as implemented. */
 export function extractTcIdsFromSpecContent(content: string): string[] {
+  const withoutComments = content
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
   const ids: string[] = [];
   const re = /test\s*\(\s*[`"'](TC[-_]?\d+)/gi;
-  let match = re.exec(content);
+  let match = re.exec(withoutComments);
   while (match) {
     ids.push(match[1]);
-    match = re.exec(content);
+    match = re.exec(withoutComments);
   }
   return ids;
 }

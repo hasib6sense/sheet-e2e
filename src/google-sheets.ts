@@ -7,6 +7,7 @@ import {
   getSkipTabs,
   getSpreadsheetId,
   getTabSuite,
+  getTabSuites,
 } from "./config";
 import { formatErrorForSheet } from "./format-error";
 import {
@@ -368,14 +369,18 @@ function rowToTestCase(tab: string, row: string[], headers: string[]): E2eTestCa
   };
 }
 
-/** Sheet rows that match a TC declared in local Playwright spec files.
- *  Category === API rows are omitted (Playwright / runner are UI-only). */
+/** Sheet + local cases for mapped tabs.
+ *  Category === API rows are omitted. Category === UI rows are included for the Unit Test engine. */
 export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): Promise<{
   cases: E2eTestCase[];
   warnings: string[];
 }> {
   const localIndex = indexLocalPlaywrightTests();
-  let tabNames = Array.from(localIndex.keys());
+  // Include every tab-suites entry (even when the Playwright spec is empty/commented)
+  // so Unit Test sheet rows still appear under that module.
+  let tabNames = Array.from(
+    new Set([...getTabSuites().map((s) => s.tab), ...Array.from(localIndex.keys())]),
+  );
 
   if (tabFilter?.length) {
     const wanted = new Set(tabFilter.map((t) => t.toLowerCase()));
@@ -431,7 +436,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
     const rowsBySheetTab = await readTabsRowsBatch(sheets, uniqueSheetTabs);
 
     for (const tab of tabNames) {
-      const localEntries = localIndex.get(tab)!;
+      const localEntries = localIndex.get(tab) ?? [];
       const localKeys = new Set(localEntries.map((e) => normalizeTcId(e.testCaseId)));
       const resolved = resolvedBySuite.get(tab)!;
 
@@ -475,7 +480,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
             tab,
             hasSpec: true,
             implemented: true,
-            runnable: true,
+            runnable: categorizeEngine(fromSheet.category) !== "unit-test",
             specFile: entry.specFile,
           });
         } else {
@@ -523,7 +528,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
     const msg = (err as Error).message || String(err);
     for (const tab of tabNames) {
       warnings.push(`Sheet read failed for "${tab}": ${msg}`);
-      pushLocalOnly(tab, localIndex.get(tab)!);
+      pushLocalOnly(tab, localIndex.get(tab) ?? []);
     }
   }
 
@@ -544,20 +549,27 @@ export async function fetchAllTestCases(tabFilter?: string[]): Promise<E2eTestCa
 /** Build module dropdown stats from an already-fetched case list (no extra sheet reads). */
 export function buildTabInfoFromCases(cases: E2eTestCase[]): E2eTabInfo[] {
   const localIndex = indexLocalPlaywrightTests();
-  return Array.from(localIndex.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([name, entries]: [string, { testCaseId: string; specFile: string }[]]) => {
-      const suite = getTabSuite(name);
-      const tabCases = cases.filter((c) => c.tab === name);
-      return {
-        name,
-        hasSpec: Boolean(suite),
-        specFiles: suite?.specs ?? entries.map((e) => e.specFile),
-        caseCount: tabCases.length,
-        implementedCount: entries.length,
-        runnableCount: tabCases.filter((c) => c.runnable).length,
-      };
-    });
+  const names = Array.from(
+    new Set([
+      ...getTabSuites().map((s) => s.tab),
+      ...cases.map((c) => c.tab),
+      ...Array.from(localIndex.keys()),
+    ]),
+  ).sort((a, b) => a.localeCompare(b));
+
+  return names.map((name) => {
+    const suite = getTabSuite(name);
+    const entries = localIndex.get(name) ?? [];
+    const tabCases = cases.filter((c) => c.tab === name);
+    return {
+      name,
+      hasSpec: Boolean(suite),
+      specFiles: suite?.specs ?? entries.map((e) => e.specFile),
+      caseCount: tabCases.length,
+      implementedCount: entries.length,
+      runnableCount: tabCases.filter((c) => c.runnable).length,
+    };
+  });
 }
 
 export async function fetchTabInfo(): Promise<E2eTabInfo[]> {

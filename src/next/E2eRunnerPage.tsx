@@ -315,6 +315,10 @@ export function E2eRunnerPage() {
   );
 
   const isUnitTestEngine = engine === "unit-test";
+  const runnableInModules = useMemo(
+    () => moduleCases.filter((c) => c.runnable),
+    [moduleCases],
+  );
 
   const allVisibleChecked =
     visibleCases.length > 0 && visibleCases.every((c) => checked.has(c.id));
@@ -596,8 +600,19 @@ export function E2eRunnerPage() {
         <div className="relative z-0 mb-3 flex flex-wrap items-center gap-2">
           <Btn
             variant="dark"
-            disabled={running || !selectedModules.length || isUnitTestEngine}
-            title={isUnitTestEngine ? "Unit Test runner coming soon" : undefined}
+            disabled={
+              running ||
+              !selectedModules.length ||
+              isUnitTestEngine ||
+              runnableInModules.length === 0
+            }
+            title={
+              isUnitTestEngine
+                ? "Unit Test runner coming soon"
+                : runnableInModules.length === 0
+                  ? "No Playwright tests in the selected module(s)"
+                  : undefined
+            }
             onClick={runAllInModules}
           >
             {runTarget === "all" ? <IconSpinner /> : <IconPlay />}
