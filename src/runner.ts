@@ -221,6 +221,10 @@ export async function runE2eTests(
   request: E2eRunRequest,
   callbacks?: E2eRunCallbacks,
 ): Promise<E2eRunResult> {
+  const engine = request.engine ?? "playwright";
+  if (engine !== "playwright") {
+    throw new Error(`"${engine}" runner is not implemented yet.`);
+  }
   const syncSheet = request.syncSheet !== false;
   let batches: RunBatch[];
 
@@ -260,7 +264,7 @@ export async function runE2eTests(
     if (syncSheet) {
       for (const tab of batch.tabs) syncedTabs.add(tab);
       callbacks?.onOutput?.("\n--- Syncing results to Google Sheet ---\n");
-      const summary = await syncSheetsForTabs(batch.tabs, resultsFile);
+      const summary = await syncSheetsForTabs(batch.tabs, resultsFile, engine);
       syncSummary.push(...summary);
       for (const line of summary) {
         callbacks?.onOutput?.(`${line}\n`);

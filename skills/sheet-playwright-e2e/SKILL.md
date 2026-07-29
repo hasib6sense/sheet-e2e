@@ -134,9 +134,10 @@ When generating a suite:
 
 Sync (package / CLI) updates non-API rows:
 
-- **UI Status** → Passed / Failed (`skipped` / `timedOut` → Failed)
-- **Playwright** → Implemented
+- **Playwright runs** → `Playwright` = Passed / Failed (`skipped` / `timedOut` → Failed)
+- **Unit Test runs** → `UI Status` = Passed / Failed
 - **Comment** → failure reason (cleared on pass); **API rows never updated**
+- Status cells are formatted as centered bold badges (green Passed, red Failed, gray Not Implemented)
 
 Skip sync: `E2E_NO_SHEET_SYNC=1`. Do not mark Passed without a green run for that TC.
 

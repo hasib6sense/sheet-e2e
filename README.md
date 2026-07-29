@@ -167,10 +167,10 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000
 Required columns (aliases supported):
 
 - Test Case ID
-- Category (`API` rows skipped on sync / runner case list)
-- UI Status → Passed / Failed
-- Playwright → Implemented
-- Comment → failure reason (cleared on pass)
+- Category (`API` rows skipped; `UI` = unit-test engine; `Playwright` = browser E2E)
+- UI Status → Passed / Failed (Unit Test engine; styled badge)
+- Playwright → Passed / Failed (Playwright engine; styled badge)
+- Comment → failure reason for the active engine (cleared on pass)
 
 ## Cursor skill
 

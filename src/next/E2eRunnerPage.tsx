@@ -2,17 +2,81 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { E2eTabInfo, E2eTestCase } from "../types";
+import type { CategoryEngine } from "../google-sheets";
 import { formatErrorForSheet } from "../format-error";
 import { cn } from "./cn";
 import { ModuleMultiSelect } from "./components/ModuleMultiSelect";
 import { RunOutputPanel } from "./components/RunOutputPanel";
 import { Checkbox } from "./components/Checkbox";
 
-function statusClass(status: string): string {
-  const s = status.toLowerCase();
-  if (s === "passed") return "bg-emerald-100 text-emerald-800";
-  if (s === "failed") return "bg-red-100 text-red-800";
-  return "bg-neutral-100 text-neutral-700";
+type EngineMode = "playwright" | "unit-test";
+
+/** Mirror of categorizeEngine from google-sheets.ts — runs client-side. */
+function categorizeEngineClient(category: string): CategoryEngine {
+  const c = category.trim().toLowerCase();
+  if (c === "api") return "api";
+  if (c === "playwright") return "playwright";
+  if (c === "ui") return "unit-test";
+  return "unknown";
+}
+
+function matchesEngine(tc: E2eTestCase, engine: EngineMode): boolean {
+  const eng = categorizeEngineClient(tc.category);
+  if (engine === "playwright") return eng === "playwright" || eng === "unknown";
+  return eng === "unit-test";
+}
+
+function currentStatus(tc: E2eTestCase, engine: EngineMode): string {
+  return engine === "playwright" ? tc.playwright : tc.uiStatus;
+}
+
+function categoryBadge(category: string) {
+  const eng = categorizeEngineClient(category);
+  if (eng === "playwright")
+    return (
+      <span
+        style={{ backgroundColor: "#d1fae5", color: "#065f46" }}
+        className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
+      >
+        Playwright
+      </span>
+    );
+  if (eng === "unit-test")
+    return (
+      <span
+        style={{ backgroundColor: "#dbeafe", color: "#1e40af" }}
+        className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
+      >
+        Unit Test
+      </span>
+    );
+  return (
+    <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+      {category || "—"}
+    </span>
+  );
+}
+
+function statusStyleInline(status: string): { backgroundColor: string; color: string } | undefined {
+  const s = status.trim().toLowerCase();
+  if (s === "passed") return { backgroundColor: "#e6f4ea", color: "#137333" };
+  if (s === "failed") return { backgroundColor: "#fce8e6", color: "#c5221f" };
+  if (s === "not implemented") return { backgroundColor: "#f1f3f4", color: "#5f6368" };
+  if (s === "implemented") return { backgroundColor: "#e8f0fe", color: "#1a56db" };
+  return { backgroundColor: "#f3f4f6", color: "#374151" };
+}
+
+function statusBadge(status: string) {
+  const value = status.trim();
+  if (!value) return "—";
+  return (
+    <span
+      style={statusStyleInline(value)}
+      className="inline-flex min-w-[7.5rem] items-center justify-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold tracking-wide"
+    >
+      {value}
+    </span>
+  );
 }
 
 function IconPlay({ className }: { className?: string }) {
@@ -147,6 +211,7 @@ function Btn({
 }
 
 export function E2eRunnerPage() {
+  const [engine, setEngine] = useState<EngineMode>("playwright");
   const [cases, setCases] = useState<E2eTestCase[]>([]);
   const [tabs, setTabs] = useState<E2eTabInfo[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
@@ -216,8 +281,8 @@ export function E2eRunnerPage() {
   );
 
   const moduleCases = useMemo(
-    () => cases.filter((c) => moduleSet.has(c.tab)),
-    [cases, moduleSet],
+    () => cases.filter((c) => moduleSet.has(c.tab) && matchesEngine(c, engine)),
+    [cases, moduleSet, engine],
   );
 
   const showModuleColumn = selectedModules.length > 1;
@@ -230,7 +295,8 @@ export function E2eRunnerPage() {
         c.testCaseId.toLowerCase().includes(q) ||
         c.testCase.toLowerCase().includes(q) ||
         c.tab.toLowerCase().includes(q) ||
-        c.uiStatus.toLowerCase().includes(q),
+        c.uiStatus.toLowerCase().includes(q) ||
+        c.playwright.toLowerCase().includes(q),
     );
   }, [moduleCases, search]);
 
@@ -242,10 +308,12 @@ export function E2eRunnerPage() {
   const failedInModules = useMemo(
     () =>
       moduleCases.filter(
-        (c) => c.runnable && c.uiStatus.trim().toLowerCase() === "failed",
+        (c) => c.runnable && currentStatus(c, engine).trim().toLowerCase() === "failed",
       ),
-    [moduleCases],
+    [moduleCases, engine],
   );
+
+  const isUnitTestEngine = engine === "unit-test";
 
   const allVisibleChecked =
     visibleCases.length > 0 && visibleCases.every((c) => checked.has(c.id));
@@ -254,7 +322,7 @@ export function E2eRunnerPage() {
     setSelectedModules(modules);
     setChecked((prev) => {
       const next = new Set<string>();
-      for (const id of prev) {
+      for (const id of Array.from(prev)) {
         const tc = cases.find((c) => c.id === id);
         if (tc && modules.includes(tc.tab)) next.add(id);
       }
@@ -313,7 +381,7 @@ export function E2eRunnerPage() {
       const res = await fetch("/api/e2e/run/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, syncSheet }),
+        body: JSON.stringify({ ...body, syncSheet, engine }),
       });
 
       if (!res.ok && !res.body) {
@@ -420,7 +488,7 @@ export function E2eRunnerPage() {
     );
   };
 
-  const colSpan = showModuleColumn ? 8 : 7;
+  const colSpan = showModuleColumn ? 9 : 8;
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -430,7 +498,7 @@ export function E2eRunnerPage() {
           <div>
             <h1 className="text-xl font-semibold">E2E Test Runner</h1>
             <p className="text-sm text-neutral-500">
-              Select module(s), run Playwright tests, sync results to the sheet
+              Select engine and module(s), run tests, sync results to the sheet
             </p>
           </div>
         </div>
@@ -456,6 +524,22 @@ export function E2eRunnerPage() {
 
         <section className="mb-3 rounded-lg border bg-white p-4">
           <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-[180px]">
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Engine</label>
+              <select
+                value={engine}
+                onChange={(e) => {
+                  setEngine(e.target.value as EngineMode);
+                  setChecked(new Set());
+                }}
+                disabled={running}
+                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm disabled:opacity-50"
+              >
+                <option value="playwright">Playwright</option>
+                <option value="unit-test">Unit Test</option>
+              </select>
+            </div>
+
             <div className="relative z-10 min-w-[220px] flex-1">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Modules</label>
               <ModuleMultiSelect
@@ -502,10 +586,17 @@ export function E2eRunnerPage() {
           </div>
         </section>
 
+        {isUnitTestEngine && (
+          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+            Unit Test runner is coming soon. Cases are shown read-only.
+          </div>
+        )}
+
         <div className="relative z-0 mb-3 flex flex-wrap items-center gap-2">
           <Btn
             variant="dark"
-            disabled={running || !selectedModules.length}
+            disabled={running || !selectedModules.length || isUnitTestEngine}
+            title={isUnitTestEngine ? "Unit Test runner coming soon" : undefined}
             onClick={runAllInModules}
           >
             {runTarget === "all" ? <IconSpinner /> : <IconPlay />}
@@ -519,13 +610,15 @@ export function E2eRunnerPage() {
 
           <Btn
             variant={failedInModules.length > 0 ? "danger" : "ghost"}
-            disabled={running || failedInModules.length === 0}
-            onClick={runFailed}
+            disabled={running || failedInModules.length === 0 || isUnitTestEngine}
             title={
-              failedInModules.length === 0
-                ? "No failed tests in the selected module(s)"
-                : `Re-run ${failedInModules.length} test(s) with UI Status Failed`
+              isUnitTestEngine
+                ? "Unit Test runner coming soon"
+                : failedInModules.length === 0
+                  ? "No failed tests in the selected module(s)"
+                  : `Re-run ${failedInModules.length} failed ${engine === "playwright" ? "Playwright" : "Unit Test"} test(s)`
             }
+            onClick={runFailed}
           >
             {runTarget === "failed" ? <IconSpinner /> : <IconXCircle />}
             <span>
@@ -544,7 +637,8 @@ export function E2eRunnerPage() {
           <Btn
             className="ml-auto"
             variant={checkedInView.length > 0 ? "dark" : "ghost"}
-            disabled={running || checkedInView.length === 0}
+            disabled={running || checkedInView.length === 0 || isUnitTestEngine}
+            title={isUnitTestEngine ? "Unit Test runner coming soon" : undefined}
             onClick={runChecked}
           >
             {runTarget === "checked" ? <IconSpinner /> : <IconPlay />}
@@ -578,13 +672,14 @@ export function E2eRunnerPage() {
                 <th className="w-10 px-3 py-3">
                   <Checkbox
                     checked={allVisibleChecked}
-                    disabled={!visibleCases.length || running}
+                    disabled={!visibleCases.length || running || isUnitTestEngine}
                     onCheckedChange={() => toggleCheckAllVisible()}
                     aria-label="Select all visible tests"
                   />
                 </th>
                 {showModuleColumn && <th className="w-28 px-3 py-3">Module</th>}
                 <th className="w-24 px-3 py-3">TC ID</th>
+                <th className="w-28 px-3 py-3">Category</th>
                 <th className="px-3 py-3">Test case</th>
                 <th className="w-24 px-3 py-3">UI Status</th>
                 <th className="w-28 px-3 py-3">Playwright</th>
@@ -617,7 +712,7 @@ export function E2eRunnerPage() {
                     <td className="px-3 py-2 align-middle">
                       <Checkbox
                         checked={checked.has(tc.id)}
-                        disabled={running}
+                        disabled={running || isUnitTestEngine}
                         onCheckedChange={() => toggleCheck(tc.id)}
                         aria-label={`Select ${tc.testCaseId}`}
                       />
@@ -626,24 +721,12 @@ export function E2eRunnerPage() {
                       <td className="px-3 py-2 text-xs font-medium">{tc.tab}</td>
                     )}
                     <td className="px-3 py-2 font-mono text-xs font-medium">{tc.testCaseId}</td>
+                    <td className="px-3 py-2">{categoryBadge(tc.category)}</td>
                     <td className="px-3 py-2" title={tc.testCase}>
                       {tc.testCase}
                     </td>
-                    <td className="px-3 py-2">
-                      {tc.uiStatus ? (
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium",
-                            statusClass(tc.uiStatus),
-                          )}
-                        >
-                          {tc.uiStatus}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{tc.playwright || "—"}</td>
+                    <td className="px-3 py-2">{statusBadge(tc.uiStatus)}</td>
+                    <td className="px-3 py-2">{statusBadge(tc.playwright)}</td>
                     <td className="max-w-md px-3 py-2 text-xs text-neutral-600" title={tc.comment}>
                       {tc.comment ? formatErrorForSheet(tc.comment) : "—"}
                     </td>
@@ -651,7 +734,8 @@ export function E2eRunnerPage() {
                       <Btn
                         variant="ghost"
                         className="h-8 px-2.5 text-xs"
-                        disabled={running}
+                        disabled={running || isUnitTestEngine}
+                        title={isUnitTestEngine ? "Unit Test runner coming soon" : undefined}
                         onClick={() => runOne(tc)}
                       >
                         {runTarget === tc.id ? (

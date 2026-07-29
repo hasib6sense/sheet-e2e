@@ -28,8 +28,18 @@ export type E2eTabInfo = {
 };
 
 export type E2eRunRequest =
-  | { mode: "tabs"; tabs: string[]; syncSheet?: boolean }
-  | { mode: "cases"; cases: { tab: string; testCaseId: string }[]; syncSheet?: boolean };
+  | {
+      mode: "tabs";
+      tabs: string[];
+      syncSheet?: boolean;
+      engine?: "playwright" | "unit-test";
+    }
+  | {
+      mode: "cases";
+      cases: { tab: string; testCaseId: string }[];
+      syncSheet?: boolean;
+      engine?: "playwright" | "unit-test";
+    };
 
 export type E2eRunResult = {
   exitCode: number;
