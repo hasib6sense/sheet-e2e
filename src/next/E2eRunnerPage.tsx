@@ -271,9 +271,9 @@ export function E2eRunnerPage() {
       tabs.map((tab) => ({
         value: tab.name,
         label: tab.name,
-        count: tab.implementedCount,
+        count: cases.filter((c) => c.tab === tab.name && matchesEngine(c, engine)).length,
       })),
-    [tabs],
+    [tabs, cases, engine],
   );
 
   const activeTabs = useMemo(

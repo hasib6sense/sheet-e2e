@@ -403,7 +403,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
         testCaseId: entry.testCaseId,
         testScenario: "",
         testCase: entry.testCaseId,
-        category: "UI",
+        category: "Playwright",
         uiStatus: "",
         playwright: "",
         comment: "",
@@ -485,7 +485,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
             testCaseId: entry.testCaseId,
             testScenario: "",
             testCase: entry.testCaseId,
-            category: "UI",
+            category: "Playwright",
             uiStatus: "",
             playwright: "",
             comment: "",
@@ -495,6 +495,28 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
             runnable: true,
           });
         }
+      }
+
+      // Include sheet Unit Test (Category=UI) rows that are not in Playwright specs,
+      // so the Unit Test engine can show accurate counts and a read-only case list.
+      const pushedKeys = new Set(
+        cases.filter((c) => c.tab === tab).map((c) => normalizeTcId(c.testCaseId)),
+      );
+      for (const row of rows) {
+        const tc = rowToTestCase(tab, row, headers);
+        if (!tc) continue;
+        if (categorizeEngine(tc.category) !== "unit-test") continue;
+        const key = normalizeTcId(tc.testCaseId);
+        if (pushedKeys.has(key)) continue;
+        cases.push({
+          ...tc,
+          tab,
+          hasSpec: false,
+          implemented: false,
+          runnable: false,
+          specFile: "",
+        });
+        pushedKeys.add(key);
       }
     }
   } catch (err) {
