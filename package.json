@@ -1,6 +1,6 @@
 {
   "name": "@6sense/sheet-e2e",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Playwright e2e runner UI, APIs, sheet sync, and CLI for Next.js apps",
   "license": "UNLICENSED",
   "type": "module",

@@ -18,6 +18,28 @@ type ModuleMultiSelectProps = {
   disabled?: boolean;
 };
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden
+      className={cn(
+        "h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-150",
+        open && "rotate-180",
+      )}
+    >
+      <path
+        d="M5.25 7.75 10 12.5l4.75-4.75"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ModuleMultiSelect({
   options,
   value,
@@ -62,8 +84,8 @@ export function ModuleMultiSelect({
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
       >
-        <span className="min-w-0 flex-1 truncate text-left">{triggerLabel}</span>
-        <span className={cn("text-neutral-400 transition-transform", open && "rotate-180")}>▾</span>
+        <span className="min-w-0 flex-1 truncate text-left text-neutral-900">{triggerLabel}</span>
+        <ChevronIcon open={open} />
       </button>
       {open && (
         <>

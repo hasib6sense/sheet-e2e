@@ -6,6 +6,7 @@ import type { CategoryEngine } from "../google-sheets";
 import { formatErrorForSheet } from "../format-error";
 import { cn } from "./cn";
 import { ModuleMultiSelect } from "./components/ModuleMultiSelect";
+import { SingleSelect } from "./components/SingleSelect";
 import { RunOutputPanel } from "./components/RunOutputPanel";
 import { Checkbox } from "./components/Checkbox";
 
@@ -526,18 +527,18 @@ export function E2eRunnerPage() {
           <div className="flex flex-wrap items-end gap-4">
             <div className="min-w-[180px]">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Engine</label>
-              <select
+              <SingleSelect
                 value={engine}
-                onChange={(e) => {
-                  setEngine(e.target.value as EngineMode);
+                disabled={running}
+                options={[
+                  { value: "playwright", label: "Playwright" },
+                  { value: "unit-test", label: "Unit Test" },
+                ]}
+                onChange={(next) => {
+                  setEngine(next as EngineMode);
                   setChecked(new Set());
                 }}
-                disabled={running}
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm disabled:opacity-50"
-              >
-                <option value="playwright">Playwright</option>
-                <option value="unit-test">Unit Test</option>
-              </select>
+              />
             </div>
 
             <div className="relative z-10 min-w-[220px] flex-1">
