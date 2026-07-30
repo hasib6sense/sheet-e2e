@@ -541,7 +541,7 @@ export function E2eRunnerPage() {
 
         <section className="mb-3 rounded-lg border bg-white p-4">
           <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-[180px]">
+            <div className="relative z-10 min-w-[180px]">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Engine</label>
               <SingleSelect
                 value={engine}
@@ -603,7 +603,7 @@ export function E2eRunnerPage() {
           </div>
         </section>
 
-        <div className="relative z-0 mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative mb-3 flex flex-wrap items-center gap-2">
           <Btn
             variant="dark"
             disabled={
