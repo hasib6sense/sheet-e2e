@@ -30,7 +30,6 @@ function parseRunStats(log: string) {
     };
   }
 
-  // Unique by test index — last status wins (retries must not double-count).
   const byIndex = new Map<string, "pass" | "fail">();
   for (const line of clean.split("\n")) {
     const m = line.match(/^\s*([✓✔✘✕x-]|ok)\s+(\d+)\b/i);
@@ -80,54 +79,41 @@ export function RunOutputPanel({
   if (!visible) return null;
 
   return (
-    <section
-      ref={panelRef}
-      className="mb-3 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-100 shadow-sm"
-      aria-live="polite"
-      aria-busy={running}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {running && <span className="animate-pulse text-sky-400">●</span>}
-          {success && <span className="text-emerald-400">✓</span>}
-          {failed && <span className="text-red-400">✘</span>}
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
+    <section ref={panelRef} className="sheet-e2e-run-panel" aria-live="polite" aria-busy={running}>
+      <div className="sheet-e2e-run-panel__header">
+        <div style={{ display: "flex", minWidth: 0, flex: 1, alignItems: "center", gap: 8 }}>
+          {running && <span className="sheet-e2e-run-panel__dot">●</span>}
+          {success && <span className="sheet-e2e-run-panel__ok">✓</span>}
+          {failed && <span className="sheet-e2e-run-panel__err">✘</span>}
+          <div style={{ minWidth: 0 }}>
+            <p className="sheet-e2e-run-panel__title">
               {running ? "Running…" : success ? "Completed" : failed ? "Failed" : "Output"}
             </p>
             {runLabel && (
-              <p className="truncate text-xs text-neutral-400">{stripAnsi(runLabel).trim()}</p>
+              <p className="sheet-e2e-run-panel__subtitle">{stripAnsi(runLabel).trim()}</p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(stats.passed > 0 || stats.failed > 0) && (
-            <div className="flex gap-1.5 text-xs">
+            <div style={{ display: "flex", gap: 6 }}>
               {stats.passed > 0 && (
-                <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-emerald-400">
-                  {stats.passed} passed
-                </span>
+                <span className="sheet-e2e-run-panel__badge-pass">{stats.passed} passed</span>
               )}
               {stats.failed > 0 && !(finished && exitCode === 0) && (
-                <span className="rounded bg-red-950 px-1.5 py-0.5 text-red-400">
-                  {stats.failed} failed
-                </span>
+                <span className="sheet-e2e-run-panel__badge-fail">{stats.failed} failed</span>
               )}
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="rounded px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
-          >
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="sheet-e2e-run-panel__btn">
             {expanded ? "Collapse" : "Expand"}
           </button>
           {finished && onDismiss && (
             <button
               type="button"
               onClick={onDismiss}
-              className="rounded px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800"
+              className="sheet-e2e-run-panel__btn"
               aria-label="Dismiss run output"
             >
               ✕
@@ -136,7 +122,7 @@ export function RunOutputPanel({
         </div>
       </div>
 
-      <div className="p-2">
+      <div style={{ padding: 8 }}>
         <RunLog text={runLog} expanded={expanded} running={running} />
       </div>
     </section>

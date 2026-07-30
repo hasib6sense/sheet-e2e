@@ -18,9 +18,9 @@ function Spinner({ className }: { className?: string }) {
       stroke="currentColor"
       strokeWidth="2"
       aria-hidden
-      className={cn("mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-sky-400", className)}
+      className={cn("sheet-e2e-spinner", className)}
     >
-      <circle cx="12" cy="12" r="9" className="opacity-25" />
+      <circle cx="12" cy="12" r="9" opacity="0.25" />
       <path d="M21 12a9 9 0 0 0-9-9" />
     </svg>
   );
@@ -29,18 +29,26 @@ function Spinner({ className }: { className?: string }) {
 function LineIcon({ kind }: { kind: LogLineKind }) {
   if (kind === "running") return <Spinner />;
   if (kind === "pass" || kind === "summary-pass") {
-    return <span className="mt-0.5 shrink-0 text-emerald-400" aria-hidden>✓</span>;
+    return (
+      <span className="sheet-e2e-run-log__icon sheet-e2e-log-pass" aria-hidden>
+        ✓
+      </span>
+    );
   }
   if (kind === "fail" || kind === "summary-fail") {
-    return <span className="mt-0.5 shrink-0 text-red-400" aria-hidden>✘</span>;
+    return (
+      <span className="sheet-e2e-run-log__icon sheet-e2e-log-fail" aria-hidden>
+        ✘
+      </span>
+    );
   }
-  return <span className="w-3.5 shrink-0" aria-hidden />;
+  return <span className="sheet-e2e-run-log__icon" aria-hidden />;
 }
 
 /** Drop reporter status marks — icon column owns pass/fail/running. */
 function displayLine(line: string, kind: LogLineKind): string {
   if (kind === "pass" || kind === "fail" || kind === "running") {
-    return line.replace(/^\s*[…⋯✓✔✘✕x-]\s*/i, "");
+    return line.replace(/^\s*[…⋯○oO✓✔✘✕x-]\s*/i, "");
   }
   return line;
 }
@@ -96,8 +104,8 @@ export function RunLog({ text, expanded = false, running = false }: RunLogProps)
     <div
       ref={ref}
       className={cn(
-        "overflow-auto rounded-md bg-neutral-950/50 p-3 font-mono text-xs leading-relaxed",
-        expanded ? "max-h-72" : "max-h-36",
+        "sheet-e2e-run-log",
+        expanded ? "sheet-e2e-run-log--expanded" : "sheet-e2e-run-log--collapsed",
       )}
     >
       {rows.map((row) => {
@@ -110,14 +118,9 @@ export function RunLog({ text, expanded = false, running = false }: RunLogProps)
         const textOut = displayLine(row.line, row.kind);
 
         return (
-          <div key={row.key} className="flex gap-2">
-            {showIcon ? <LineIcon kind={row.kind} /> : <span className="w-3.5 shrink-0" />}
-            <span
-              className={cn(
-                "min-w-0 flex-1 whitespace-pre-wrap break-words",
-                LOG_LINE_CLASS[row.kind],
-              )}
-            >
+          <div key={row.key} className="sheet-e2e-run-log__row">
+            {showIcon ? <LineIcon kind={row.kind} /> : <span className="sheet-e2e-run-log__icon" />}
+            <span className={cn("sheet-e2e-run-log__text", LOG_LINE_CLASS[row.kind])}>
               {textOut || "\u00a0"}
             </span>
           </div>
@@ -125,7 +128,7 @@ export function RunLog({ text, expanded = false, running = false }: RunLogProps)
       })}
 
       {running && !hasLiveRunning && !runFinishedInLog && (
-        <div className="mt-1 flex gap-2 text-sky-300">
+        <div className="sheet-e2e-run-log__row sheet-e2e-log-running" style={{ marginTop: 4 }}>
           <Spinner />
           <span>Waiting for tests…</span>
         </div>

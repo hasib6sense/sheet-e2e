@@ -1,5 +1,6 @@
 "use client";
 
+import "./runner-ui.css";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { E2eTabInfo, E2eTestCase } from "../types";
 import type { CategoryEngine } from "../google-sheets";
