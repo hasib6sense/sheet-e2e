@@ -27,12 +27,13 @@ For browser E2E (`Category=Playwright`), use `sheet-playwright-e2e` instead.
 | Sheet `Category` | Unit Test action |
 |------------------|------------------|
 | **`UI`** | **Implement** in Jest (`test` / `it` with `TC_XXX: …`) |
-| **`Playwright`** or blank/legacy | **Omit** — those belong in Playwright specs |
-| **`API`** | **Omit** entirely — discarded from runner and sync |
+| **`Playwright`** or blank/legacy | **Omit** from Unit Test generation — those belong in Playwright specs |
+| **`API`** | **Omit** from Unit Test generation |
 
 - Cover **every** Category=`UI` TC on the tab (do not stop mid-range).
 - Keep sheet TC IDs aligned with `it("TC_XXX: …")` or `test("TC_XXX: …")`.
 - Never add Category=`UI` cases to Playwright specs.
+- Within the Unit Test scope, discard a TC only when the sheet explicitly marks it **`Not Implemented yet`**. Do not drop rows just because they need mocks, setup, auth context, or component plumbing.
 
 ## Sheet columns → Jest
 
@@ -45,7 +46,7 @@ Read the full tab before writing. Use sheet values; do not invent nicer inputs.
 | Pre-Conditions | Mocks, providers, fixtures, `beforeEach` |
 | Test Steps | Arrange → act → assert order |
 | Test Data | Exact inputs; `N/A` = no payload; honor quoted spaces |
-| Endpoint | Component route / module under test (not browser `page.goto`) |
+| Endpoint | Component route / module under test (not browser `page.goto`). If the cell starts with `Protected`, strip that marker and use the remaining route for context, whether it is written as `Protected /users` or as `Protected` on one line and `/users` on the next line. Treat `Protected` as an auth hint for setup/mocks. |
 | Expected Result | Component/DOM/hook/util assertions |
 | UI Status / Comment | Sync after Unit Test run — never invent Passed |
 

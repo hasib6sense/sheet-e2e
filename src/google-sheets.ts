@@ -765,8 +765,10 @@ export function parseJestReport(reportPath: string): Map<string, ParsedResult> {
       if (!tcId) continue;
 
       let status = assertion.status ?? "failed";
-      if (status === "pending" || status === "todo" || status === "disabled") {
-        status = "failed";
+      // Jest marks non-matching `--testNamePattern` cases as pending — do not sync those
+      // as Failed (that made "Run failed" rewrite every other TC on the tab).
+      if (status === "pending" || status === "todo" || status === "disabled" || status === "skipped") {
+        continue;
       }
 
       const error =

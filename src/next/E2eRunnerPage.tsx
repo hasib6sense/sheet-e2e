@@ -289,11 +289,6 @@ export function E2eRunnerPage() {
 
   const moduleSet = useMemo(() => new Set(selectedModules), [selectedModules]);
 
-  const activeTabs = useMemo(
-    () => tabs.filter((t) => moduleSet.has(t.name)),
-    [tabs, moduleSet],
-  );
-
   const moduleCases = useMemo(
     () => cases.filter((c) => moduleSet.has(c.tab) && matchesEngine(c, engine)),
     [cases, moduleSet, engine],
@@ -377,6 +372,18 @@ export function E2eRunnerPage() {
     setRunLog((prev) => prev + text);
   };
 
+  const markRunLabelFinished = () => {
+    setRunLabel((prev) => {
+      if (!prev) return "Finished";
+      const cleaned = prev
+        .replace(/^Re-running\s+/i, "")
+        .replace(/^Running\s+/i, "")
+        .replace(/…\s*$/u, "")
+        .trim();
+      return cleaned ? `Finished ${cleaned}` : "Finished";
+    });
+  };
+
   const executeRun = async (
     label: string,
     body: {
@@ -432,6 +439,14 @@ export function E2eRunnerPage() {
 
           if (event.type === "log" && event.text) {
             appendLog(event.text);
+            const moduleBanner = event.text.match(
+              /---\s*\[(\d+)\/(\d+)\]\s*(.+?)\s*---/,
+            );
+            if (moduleBanner) {
+              setRunLabel(
+                `Running ${moduleBanner[3]} (${moduleBanner[1]}/${moduleBanner[2]})…`,
+              );
+            }
           } else if (event.type === "error") {
             const msg = event.message ?? "Unknown error";
             appendLog(`\nError: ${msg}\n`);
@@ -441,6 +456,7 @@ export function E2eRunnerPage() {
             setLastExitCode(code);
             appendLog(`\nExit code: ${code}\n`);
             // End "running" UI as soon as Playwright finishes — don't wait for sheet case refresh.
+            markRunLabelFinished();
             setRunning(false);
             setRunTarget(null);
           }
@@ -452,6 +468,7 @@ export function E2eRunnerPage() {
     } catch (err) {
       appendLog(`\nRequest failed: ${(err as Error).message}\n`);
       setError((err as Error).message);
+      markRunLabelFinished();
     } finally {
       setRunning(false);
       setRunTarget(null);
@@ -481,10 +498,11 @@ export function E2eRunnerPage() {
 
   const runFailed = () => {
     if (!failedInModules.length) return;
+    const moduleCount = new Set(failedInModules.map((c) => c.tab)).size;
     const label =
-      selectedModules.length === 1
-        ? `Running ${failedInModules.length} failed test(s) in ${selectedModules[0]}…`
-        : `Running ${failedInModules.length} failed test(s) across ${selectedModules.length} modules…`;
+      moduleCount === 1
+        ? `Re-running ${failedInModules.length} failed test(s) in ${failedInModules[0]!.tab}…`
+        : `Re-running ${failedInModules.length} failed test(s) as ${moduleCount} separate module runs…`;
     void executeRun(
       label,
       {
@@ -667,12 +685,6 @@ export function E2eRunnerPage() {
             </span>
           </Btn>
         </div>
-
-        {activeTabs.length > 0 && !modulePickerOpen && (
-          <p className="mb-3 text-xs text-neutral-500">
-            {activeTabs.map((t) => `${t.name} → ${t.specFiles.join(", ")}`).join(" · ")}
-          </p>
-        )}
 
         {!logDismissed && (
           <RunOutputPanel

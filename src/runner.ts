@@ -159,6 +159,8 @@ function runJest(
     ...unitSpecPaths,
     "--json",
     `--outputFile=${resultsPath}`,
+    "--reporters=default",
+    "--coverage=false",
     "--colors",
   ];
   if (opts.workers != null) rawArgs.push(`--maxWorkers=${opts.workers}`);
@@ -357,11 +359,17 @@ export async function runE2eTests(
   const syncSummary: string[] = [];
   const resultsFile = engine === "unit-test" ? getUnitResultsFile() : getResultsFile();
 
-  for (const batch of batches) {
+  for (let i = 0; i < batches.length; i += 1) {
+    const batch = batches[i]!;
     if (callbacks?.signal?.aborted) {
       exitCode = exitCode || 130;
       break;
     }
+
+    const tabLabel = batch.tabs.join(", ") || "tests";
+    callbacks?.onOutput?.(
+      `\n--- [${i + 1}/${batches.length}] ${tabLabel} ---\n`,
+    );
 
     const result =
       engine === "unit-test"

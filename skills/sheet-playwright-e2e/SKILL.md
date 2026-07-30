@@ -69,11 +69,12 @@ Host layout after init:
 |------------------|------------|
 | **`Playwright`** or blank/legacy | Implement UI assertions |
 | **`UI`** | **Omit** — Unit Test engine; use `sheet-unit-test` skill |
-| **`API`** | **Omit** entirely — discarded from runner and sync |
+| **`API`** | **Omit** from Playwright generation — belongs outside this engine |
 
 - `Playwright` (or blank) rows → `playwright-tests/` specs only.
 - `UI` rows → Jest via `unitSpecs` + `sheet-unit-test` skill — **never** add to Playwright specs.
 - `API` rows → hidden from the runner entirely.
+- For rows in the Playwright scope, discard a TC only when the sheet explicitly marks it **`Not Implemented yet`**. Do not omit rows just because they are flaky, failing, protected, or missing nearby helpers.
 - Do not port API Expected Results (HTTP status / JSON) as the main Playwright assertion.
 - Cover **every** `Playwright`-category TC on the tab (do not stop mid-range).
 - Keep sheet TC IDs aligned with `test("TC_XXX: …")` — an off-by-one ID collides and confuses the runner.
@@ -95,7 +96,7 @@ Read the full tab before writing. Use sheet values; do not invent nicer emails/O
 | Pre-Conditions | `beforeEach` / helpers / mocks / `sessionStorage` |
 | Test Steps | Action order |
 | Test Data | Exact fills; `N/A` = no payload; honor quoted spaces |
-| Endpoint | `page.goto` + URL asserts |
+| Endpoint | `page.goto` + URL asserts. If the cell starts with `Protected`, strip that marker and use the remaining route as the real endpoint, whether it is written as `Protected /users` or as `Protected` on one line and `/users` on the next line. |
 | Expected Result | UI text, visibility, redirects |
 | Playwright / UI Status / Comment | Sync after run — never invent Passed |
 
@@ -115,6 +116,7 @@ When generating a suite:
 3. Do **not** invent a second login-setup file; do not put authenticated tabs on `chromium-unauth`.
 4. Specs may re-login only as a **fallback** if the page lands on Sign In (expired storage).
 5. Logged-out auth UI → `"project": "chromium-unauth"`; never depend on `auth.setup`.
+6. If the `Endpoint` cell starts with `Protected`, the case should be treated as authenticated by default and the remaining route should be used as the URL.
 
 ```
 - [ ] auth.setup.ts writes storage state for chromium project
