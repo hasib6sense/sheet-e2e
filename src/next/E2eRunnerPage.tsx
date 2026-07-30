@@ -255,26 +255,27 @@ export function E2eRunnerPage() {
     void loadCases();
   }, [loadCases]);
 
+  const moduleOptions = useMemo(() => {
+    const options = tabs.map((tab) => ({
+      value: tab.name,
+      label: tab.name,
+      count: cases.filter((c) => c.tab === tab.name && matchesEngine(c, engine)).length,
+    }));
+    // Only show modules that have cases for the selected engine
+    // (Unit Test should not list Playwright-only tabs, and vice versa).
+    return options.filter((o) => o.count > 0);
+  }, [tabs, cases, engine]);
+
   useEffect(() => {
-    if (!tabs.length) return;
     setSelectedModules((prev) => {
-      const valid = prev.filter((m) => tabs.some((t) => t.name === m));
+      const allowed = new Set(moduleOptions.map((o) => o.value));
+      const valid = prev.filter((m) => allowed.has(m));
       if (valid.length) return valid;
-      return [tabs[0].name];
+      return moduleOptions[0] ? [moduleOptions[0].value] : [];
     });
-  }, [tabs]);
+  }, [moduleOptions]);
 
   const moduleSet = useMemo(() => new Set(selectedModules), [selectedModules]);
-
-  const moduleOptions = useMemo(
-    () =>
-      tabs.map((tab) => ({
-        value: tab.name,
-        label: tab.name,
-        count: cases.filter((c) => c.tab === tab.name && matchesEngine(c, engine)).length,
-      })),
-    [tabs, cases, engine],
-  );
 
   const activeTabs = useMemo(
     () => tabs.filter((t) => moduleSet.has(t.name)),
@@ -552,7 +553,7 @@ export function E2eRunnerPage() {
                 value={selectedModules}
                 onChange={handleModulesChange}
                 onOpenChange={setModulePickerOpen}
-                disabled={!tabs.length || running}
+                disabled={!moduleOptions.length || running}
               />
             </div>
 
