@@ -256,14 +256,25 @@ export function E2eRunnerPage() {
   }, [loadCases]);
 
   const moduleOptions = useMemo(() => {
-    const options = tabs.map((tab) => ({
-      value: tab.name,
-      label: tab.name,
-      count: cases.filter((c) => c.tab === tab.name && matchesEngine(c, engine)).length,
-    }));
-    // Only show modules that have cases for the selected engine
-    // (Unit Test should not list Playwright-only tabs, and vice versa).
-    return options.filter((o) => o.count > 0);
+    return tabs
+      .map((tab) => {
+        const engineCases = cases.filter(
+          (c) => c.tab === tab.name && matchesEngine(c, engine),
+        );
+        return {
+          value: tab.name,
+          label: tab.name,
+          count: engineCases.length,
+          // Unit Test: only modules with mapped unitSpecs (implemented/runnable).
+          // Sheet-only Category=UI rows without unitSpecs stay out of the dropdown.
+          hasMappedSuite:
+            engine === "unit-test"
+              ? engineCases.some((c) => c.runnable || c.implemented || c.hasSpec)
+              : engineCases.length > 0,
+        };
+      })
+      .filter((o) => o.hasMappedSuite)
+      .map(({ value, label, count }) => ({ value, label, count }));
   }, [tabs, cases, engine]);
 
   useEffect(() => {
