@@ -5,6 +5,7 @@ import {
   classifyLogLine,
   formatSuiteLine,
   LOG_LINE_CLASS,
+  parseJestSummarySegments,
   parseTestLine,
   stripAnsi,
   testLineIndex,
@@ -196,6 +197,30 @@ function LogRowContent({ row }: { row: DisplayRow }) {
     );
   }
 
+  if (row.kind === "summary-pass" || row.kind === "summary-fail") {
+    const segments = parseJestSummarySegments(row.line);
+    if (segments) {
+      return (
+        <span className="sheet-e2e-run-log__summary">
+          {segments.map((seg, i) => (
+            <span
+              key={i}
+              className={
+                seg.tone === "fail"
+                  ? "sheet-e2e-log-fail"
+                  : seg.tone === "pass"
+                    ? "sheet-e2e-log-pass"
+                    : undefined
+              }
+            >
+              {seg.text}
+            </span>
+          ))}
+        </span>
+      );
+    }
+  }
+
   return <span>{row.line}</span>;
 }
 
@@ -244,7 +269,16 @@ export function RunLog({ text, expanded = false, running = false }: RunLogProps)
             )}
           >
             {showIcon ? <LineIcon kind={row.kind} /> : <span className="sheet-e2e-run-log__icon" />}
-            <span className={cn("sheet-e2e-run-log__text", LOG_LINE_CLASS[row.kind])}>
+            <span
+              className={cn(
+                "sheet-e2e-run-log__text",
+                row.kind === "summary-pass" || row.kind === "summary-fail"
+                  ? parseJestSummarySegments(row.line)
+                    ? "sheet-e2e-run-log__summary"
+                    : LOG_LINE_CLASS[row.kind]
+                  : LOG_LINE_CLASS[row.kind],
+              )}
+            >
               <LogRowContent row={row} />
             </span>
           </div>

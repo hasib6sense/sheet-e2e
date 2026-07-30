@@ -29,6 +29,46 @@ export function isConsoleOrDumpLine(line: string): boolean {
   return false;
 }
 
+export function isJestSummaryLine(line: string): boolean {
+  const t = line.trim();
+  return /^Test Suites:/i.test(t) || /^Tests:/i.test(t) || /^Snapshots:/i.test(t);
+}
+
+/** Jest summary footer — red icon when any non-zero failed count is present. */
+export function classifyJestSummaryLine(line: string): "summary-pass" | "summary-fail" {
+  const t = line.trim();
+  const failed = t.match(/\b(\d+)\s+failed\b/i);
+  if (failed && parseInt(failed[1]!, 10) > 0) return "summary-fail";
+  return "summary-pass";
+}
+
+export type JestSummarySegment = { text: string; tone: "default" | "pass" | "fail" };
+
+/** Split Jest summary lines so failed/passed counts can be colored like the terminal. */
+export function parseJestSummarySegments(line: string): JestSummarySegment[] | null {
+  const t = line.trim();
+  if (!isJestSummaryLine(t)) return null;
+
+  const segments: JestSummarySegment[] = [];
+  const re = /(\d+\s+(?:failed|passed|total|skipped))/gi;
+  let last = 0;
+
+  for (const match of t.matchAll(re)) {
+    const idx = match.index ?? 0;
+    if (idx > last) segments.push({ text: t.slice(last, idx), tone: "default" });
+    const token = match[1]!;
+    const count = parseInt(token, 10);
+    let tone: JestSummarySegment["tone"] = "default";
+    if (/failed/i.test(token)) tone = count > 0 ? "fail" : "default";
+    else if (/passed/i.test(token)) tone = count > 0 ? "pass" : "default";
+    segments.push({ text: token, tone });
+    last = idx + token.length;
+  }
+
+  if (last < t.length) segments.push({ text: t.slice(last), tone: "default" });
+  return segments.length ? segments : [{ text: t, tone: "default" }];
+}
+
 export function classifyLogLine(line: string): LogLineKind {
   const t = line.trim();
   if (!t) return "muted";
@@ -45,7 +85,7 @@ export function classifyLogLine(line: string): LogLineKind {
   if (/^[✘✕](\s|$)/.test(t) || /^\s*x\s+\d+\b/i.test(line)) return "fail";
   if (/✓/.test(line) && !/\|/.test(line)) return "pass";
   if (/[✘✕]/.test(line) && !/\|/.test(line)) return "fail";
-  if (/^Test Suites:/i.test(t) || /^Tests:/i.test(t) || /^Snapshots:/i.test(t)) return "summary-pass";
+  if (isJestSummaryLine(t)) return classifyJestSummaryLine(t);
   if (/^Time:/i.test(t) || /^Ran all test suites/i.test(t) || /^Test results written to/i.test(t)) return "muted";
   if (/\d+\s+passed\b/i.test(t) && !/\bfailed\b/i.test(t)) return "summary-pass";
   if (/^\d+\s+failed\b/i.test(t)) return "summary-fail";
