@@ -33,7 +33,7 @@ For browser E2E (`Category=Playwright`), use `sheet-playwright-e2e` instead.
 - Cover **every** Category=`UI` TC on the tab (do not stop mid-range).
 - Keep sheet TC IDs aligned with `it("TC_XXX: …")` or `test("TC_XXX: …")`.
 - Never add Category=`UI` cases to Playwright specs.
-- Within the Unit Test scope, discard a TC only when the sheet explicitly marks it **`Not Implemented yet`**. Do not drop rows just because they need mocks, setup, auth context, or component plumbing.
+- Within the Unit Test scope, discard a TC only when the sheet explicitly marks it **`Not Implemented`**. Do not drop rows just because they need mocks, setup, auth context, or component plumbing.
 
 ## Sheet columns → Jest
 

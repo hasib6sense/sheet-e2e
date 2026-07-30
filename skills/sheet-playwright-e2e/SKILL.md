@@ -74,7 +74,7 @@ Host layout after init:
 - `Playwright` (or blank) rows → `playwright-tests/` specs only.
 - `UI` rows → Jest via `unitSpecs` + `sheet-unit-test` skill — **never** add to Playwright specs.
 - `API` rows → hidden from the runner entirely.
-- For rows in the Playwright scope, discard a TC only when the sheet explicitly marks it **`Not Implemented yet`**. Do not omit rows just because they are flaky, failing, protected, or missing nearby helpers.
+- For rows in the Playwright scope, discard a TC only when the sheet explicitly marks it **`Not Implemented`**. Do not omit rows just because they are flaky, failing, protected, or missing nearby helpers.
 - Do not port API Expected Results (HTTP status / JSON) as the main Playwright assertion.
 - Cover **every** `Playwright`-category TC on the tab (do not stop mid-range).
 - Keep sheet TC IDs aligned with `test("TC_XXX: …")` — an off-by-one ID collides and confuses the runner.
