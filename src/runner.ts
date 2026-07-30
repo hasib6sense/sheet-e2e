@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getResultsFile, getTabSuite, getTabSuites } from "./config";
+import { getResultsFile, getTabSuite, getTabSuites, getUnitResultsFile } from "./config";
 import { syncSheetsForTabs } from "./google-sheets";
 import type { E2eRunRequest, E2eRunResult, E2eTabSuite } from "./types";
 
@@ -14,6 +14,8 @@ const JSON_FILE_REPORTER = join(
   dirname(fileURLToPath(import.meta.url)),
   "reporters/json-file.cjs",
 );
+
+type RunEngine = "playwright" | "unit-test";
 
 function grepPatternForIds(testCaseIds: string[]): string {
   const parts = testCaseIds.map((id) => {
@@ -103,7 +105,6 @@ function runPlaywright(
       } catch {
         /* ignore */
       }
-      // Fallback if process ignores SIGTERM
       setTimeout(() => {
         try {
           child.kill("SIGKILL");
@@ -137,6 +138,100 @@ function runPlaywright(
   });
 }
 
+function runJest(
+  unitSpecPaths: string[],
+  opts: {
+    workers?: number;
+    grep?: string;
+    onOutput?: (chunk: string) => void;
+    signal?: AbortSignal;
+  },
+): Promise<{ exitCode: number; output: string }> {
+  const resultsPath = resolve(process.cwd(), getUnitResultsFile());
+  try {
+    if (existsSync(resultsPath)) unlinkSync(resultsPath);
+  } catch {
+    /* ignore */
+  }
+
+  const rawArgs = [
+    "jest",
+    ...unitSpecPaths,
+    "--json",
+    `--outputFile=${resultsPath}`,
+    "--colors",
+  ];
+  if (opts.workers != null) rawArgs.push(`--maxWorkers=${opts.workers}`);
+  if (opts.grep) rawArgs.push("--testNamePattern", opts.grep);
+
+  const args = rawArgs.map((a) => (opts.grep && a === opts.grep ? shellQuote(a) : a));
+  const env: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "1" };
+  teeOutput(`\n> npx ${args.join(" ")}\n\n`, opts.onOutput);
+
+  return new Promise((resolvePromise) => {
+    if (opts.signal?.aborted) {
+      resolvePromise({ exitCode: 130, output: "\nAborted before Jest started.\n" });
+      return;
+    }
+
+    let output = "";
+    let settled = false;
+    const child = spawn("npx", args, {
+      cwd: process.cwd(),
+      shell: true,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const finish = (exitCode: number) => {
+      if (settled) return;
+      settled = true;
+      opts.signal?.removeEventListener("abort", onAbort);
+      resolvePromise({ exitCode, output });
+    };
+
+    const onAbort = () => {
+      const text = "\nRun aborted (client disconnected).\n";
+      output += text;
+      teeOutput(text, opts.onOutput);
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        /* ignore */
+      }
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* ignore */
+        }
+      }, 2000).unref?.();
+    };
+
+    opts.signal?.addEventListener("abort", onAbort);
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      output += text;
+      teeOutput(text, opts.onOutput);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      output += text;
+      teeOutput(text, opts.onOutput);
+    });
+    child.on("error", (err) => {
+      const text = `\nFailed to start Jest: ${err.message}\n`;
+      output += text;
+      teeOutput(text, opts.onOutput);
+      finish(1);
+    });
+    child.on("close", (code) => {
+      finish(opts.signal?.aborted ? 130 : (code ?? 1));
+    });
+  });
+}
+
 type RunBatch = {
   specs: string[];
   project?: string;
@@ -145,13 +240,28 @@ type RunBatch = {
   tabs: string[];
 };
 
-function batchesForTabs(tabs: string[]): RunBatch[] {
+function filesForSuite(suite: E2eTabSuite, engine: RunEngine): string[] {
+  if (engine === "unit-test") return suite.unitSpecs ?? [];
+  return suite.specs ?? [];
+}
+
+function batchesForTabs(tabs: string[], engine: RunEngine): RunBatch[] {
   const suites = tabs
     .map((tab) => getTabSuite(tab))
-    .filter((s): s is NonNullable<typeof s> => Boolean(s));
+    .filter((s): s is NonNullable<typeof s> => Boolean(s))
+    .filter((s) => filesForSuite(s, engine).length > 0);
 
   if (!suites.length) {
-    throw new Error(`No Playwright specs mapped for tabs: ${tabs.join(", ")}`);
+    const label = engine === "unit-test" ? "unitSpecs" : "Playwright specs";
+    throw new Error(`No ${label} mapped for tabs: ${tabs.join(", ")}`);
+  }
+
+  if (engine === "unit-test") {
+    return suites.map((suite) => ({
+      specs: filesForSuite(suite, engine),
+      workers: suite.workers,
+      tabs: [suite.tab],
+    }));
   }
 
   const serial = suites.filter((s) => s.workers === 1);
@@ -167,7 +277,7 @@ function batchesForTabs(tabs: string[]): RunBatch[] {
   }
   for (const [project, group] of parallelByProject) {
     batches.push({
-      specs: [...new Set(group.flatMap((s) => s.specs))],
+      specs: [...new Set(group.flatMap((s) => filesForSuite(s, engine)))],
       project,
       tabs: group.map((s) => s.tab),
     });
@@ -175,7 +285,7 @@ function batchesForTabs(tabs: string[]): RunBatch[] {
 
   for (const suite of serial) {
     batches.push({
-      specs: suite.specs,
+      specs: filesForSuite(suite, engine),
       project: suite.project,
       workers: suite.workers,
       tabs: [suite.tab],
@@ -185,7 +295,10 @@ function batchesForTabs(tabs: string[]): RunBatch[] {
   return batches;
 }
 
-function batchesForCases(cases: { tab: string; testCaseId: string }[]): RunBatch[] {
+function batchesForCases(
+  cases: { tab: string; testCaseId: string }[],
+  engine: RunEngine,
+): RunBatch[] {
   const byTab = new Map<string, string[]>();
   for (const c of cases) {
     const list = byTab.get(c.tab) ?? [];
@@ -194,14 +307,16 @@ function batchesForCases(cases: { tab: string; testCaseId: string }[]): RunBatch
   }
 
   const batches: RunBatch[] = [];
+  const label = engine === "unit-test" ? "unitSpecs" : "Playwright spec";
 
   for (const [tab, ids] of byTab) {
     const suite = getTabSuite(tab);
-    if (!suite) {
-      throw new Error(`Tab "${tab}" has no Playwright spec mapping.`);
+    const files = suite ? filesForSuite(suite, engine) : [];
+    if (!suite || !files.length) {
+      throw new Error(`Tab "${tab}" has no ${label} mapping.`);
     }
     batches.push({
-      specs: suite.specs,
+      specs: files,
       project: suite.project,
       workers: suite.workers,
       grep: grepPatternForIds(ids),
@@ -221,8 +336,8 @@ export async function runE2eTests(
   request: E2eRunRequest,
   callbacks?: E2eRunCallbacks,
 ): Promise<E2eRunResult> {
-  const engine = request.engine ?? "playwright";
-  if (engine !== "playwright") {
+  const engine: RunEngine = request.engine ?? "playwright";
+  if (engine !== "playwright" && engine !== "unit-test") {
     throw new Error(`"${engine}" runner is not implemented yet.`);
   }
   const syncSheet = request.syncSheet !== false;
@@ -230,17 +345,17 @@ export async function runE2eTests(
 
   if (request.mode === "tabs") {
     if (!request.tabs.length) throw new Error("No tabs selected.");
-    batches = batchesForTabs(request.tabs);
+    batches = batchesForTabs(request.tabs, engine);
   } else {
     if (!request.cases.length) throw new Error("No test cases selected.");
-    batches = batchesForCases(request.cases);
+    batches = batchesForCases(request.cases, engine);
   }
 
   let exitCode = 0;
   let output = "";
   const syncedTabs = new Set<string>();
   const syncSummary: string[] = [];
-  const resultsFile = getResultsFile();
+  const resultsFile = engine === "unit-test" ? getUnitResultsFile() : getResultsFile();
 
   for (const batch of batches) {
     if (callbacks?.signal?.aborted) {
@@ -248,13 +363,21 @@ export async function runE2eTests(
       break;
     }
 
-    const result = await runPlaywright(batch.specs, {
-      project: batch.project,
-      workers: batch.workers,
-      grep: batch.grep,
-      onOutput: callbacks?.onOutput,
-      signal: callbacks?.signal,
-    });
+    const result =
+      engine === "unit-test"
+        ? await runJest(batch.specs, {
+            workers: batch.workers,
+            grep: batch.grep,
+            onOutput: callbacks?.onOutput,
+            signal: callbacks?.signal,
+          })
+        : await runPlaywright(batch.specs, {
+            project: batch.project,
+            workers: batch.workers,
+            grep: batch.grep,
+            onOutput: callbacks?.onOutput,
+            signal: callbacks?.signal,
+          });
 
     output += result.output;
     if (result.exitCode !== 0) exitCode = result.exitCode;

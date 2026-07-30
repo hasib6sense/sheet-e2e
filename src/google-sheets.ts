@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   getCredentialsPath,
   getResultsFile,
+  getUnitResultsFile,
   getSkipTabs,
   getSpreadsheetId,
   getTabSuite,
@@ -12,6 +13,7 @@ import {
 import { formatErrorForSheet } from "./format-error";
 import {
   indexLocalPlaywrightTests,
+  indexLocalUnitTests,
   localSpecFileForTc,
   normalizeTcId,
 } from "./local-specs";
@@ -307,8 +309,8 @@ function isTcInLocalSpecs(tab: string, testCaseId: string): boolean {
 }
 
 /** Three-engine category model.
- *  - "playwright"  → browser E2E (Playwright CLI), runnable now
- *  - "unit-test"   → component/unit test (future engine), shown read-only
+ *  - "playwright"  → browser E2E (Playwright CLI)
+ *  - "unit-test"   → component/unit test (Jest CLI)
  *  - "api"         → API automation, hidden entirely from runner
  *  - "unknown"     → blank / legacy value, treated as "playwright" in runner
  */
@@ -376,10 +378,15 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
   warnings: string[];
 }> {
   const localIndex = indexLocalPlaywrightTests();
+  const unitIndex = indexLocalUnitTests();
   // Include every tab-suites entry (even when the Playwright spec is empty/commented)
   // so Unit Test sheet rows still appear under that module.
   let tabNames = Array.from(
-    new Set([...getTabSuites().map((s) => s.tab), ...Array.from(localIndex.keys())]),
+    new Set([
+      ...getTabSuites().map((s) => s.tab),
+      ...Array.from(localIndex.keys()),
+      ...Array.from(unitIndex.keys()),
+    ]),
   );
 
   if (tabFilter?.length) {
@@ -420,6 +427,29 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
     }
   };
 
+  const pushLocalUnitOnly = (
+    tab: string,
+    localEntries: { testCaseId: string; specFile: string }[],
+  ) => {
+    for (const entry of localEntries) {
+      cases.push({
+        id: `${tab}::${entry.testCaseId}`,
+        tab,
+        testCaseId: entry.testCaseId,
+        testScenario: "",
+        testCase: entry.testCaseId,
+        category: "UI",
+        uiStatus: "",
+        playwright: "",
+        comment: "",
+        hasSpec: true,
+        implemented: true,
+        specFile: entry.specFile,
+        runnable: true,
+      });
+    }
+  };
+
   try {
     const titles = await getSpreadsheetTitles(sheets);
     const resolvedBySuite = new Map<string, { title: string | null; warning?: string }>();
@@ -437,11 +467,16 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
 
     for (const tab of tabNames) {
       const localEntries = localIndex.get(tab) ?? [];
+      const unitEntries = unitIndex.get(tab) ?? [];
       const localKeys = new Set(localEntries.map((e) => normalizeTcId(e.testCaseId)));
+      const unitByKey = new Map(
+        unitEntries.map((e) => [normalizeTcId(e.testCaseId), e] as const),
+      );
       const resolved = resolvedBySuite.get(tab)!;
 
       if (!resolved.title) {
         pushLocalOnly(tab, localEntries);
+        pushLocalUnitOnly(tab, unitEntries);
         continue;
       }
 
@@ -451,6 +486,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
           `Sheet tab "${resolved.title}" has no header row with Test Case ID.`,
         );
         pushLocalOnly(tab, localEntries);
+        pushLocalUnitOnly(tab, unitEntries);
         continue;
       }
 
@@ -475,14 +511,28 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
 
         const fromSheet = sheetByTc.get(key);
         if (fromSheet) {
-          cases.push({
-            ...fromSheet,
-            tab,
-            hasSpec: true,
-            implemented: true,
-            runnable: categorizeEngine(fromSheet.category) !== "unit-test",
-            specFile: entry.specFile,
-          });
+          const eng = categorizeEngine(fromSheet.category);
+          const unitEntry = unitByKey.get(key);
+          // Category=UI belongs to the Unit Test engine — only runnable when in unitSpecs.
+          if (eng === "unit-test") {
+            cases.push({
+              ...fromSheet,
+              tab,
+              hasSpec: Boolean(unitEntry),
+              implemented: Boolean(unitEntry),
+              runnable: Boolean(unitEntry),
+              specFile: unitEntry?.specFile ?? "",
+            });
+          } else {
+            cases.push({
+              ...fromSheet,
+              tab,
+              hasSpec: true,
+              implemented: true,
+              runnable: true,
+              specFile: entry.specFile,
+            });
+          }
         } else {
           cases.push({
             id: `${tab}::${entry.testCaseId}`,
@@ -502,8 +552,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
         }
       }
 
-      // Include sheet Unit Test (Category=UI) rows that are not in Playwright specs,
-      // so the Unit Test engine can show accurate counts and a read-only case list.
+      // Include sheet Unit Test (Category=UI) rows — runnable when present in unitSpecs.
       const pushedKeys = new Set(
         cases.filter((c) => c.tab === tab).map((c) => normalizeTcId(c.testCaseId)),
       );
@@ -513,13 +562,36 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
         if (categorizeEngine(tc.category) !== "unit-test") continue;
         const key = normalizeTcId(tc.testCaseId);
         if (pushedKeys.has(key)) continue;
+        const unitEntry = unitByKey.get(key);
         cases.push({
           ...tc,
           tab,
-          hasSpec: false,
-          implemented: false,
-          runnable: false,
-          specFile: "",
+          hasSpec: Boolean(unitEntry),
+          implemented: Boolean(unitEntry),
+          runnable: Boolean(unitEntry),
+          specFile: unitEntry?.specFile ?? "",
+        });
+        pushedKeys.add(key);
+      }
+
+      // Local unitSpecs TCs not on the sheet (or sheet read missed them).
+      for (const entry of unitEntries) {
+        const key = normalizeTcId(entry.testCaseId);
+        if (pushedKeys.has(key)) continue;
+        cases.push({
+          id: `${tab}::${entry.testCaseId}`,
+          tab,
+          testCaseId: entry.testCaseId,
+          testScenario: "",
+          testCase: entry.testCaseId,
+          category: "UI",
+          uiStatus: "",
+          playwright: "",
+          comment: "",
+          hasSpec: true,
+          implemented: true,
+          specFile: entry.specFile,
+          runnable: true,
         });
         pushedKeys.add(key);
       }
@@ -529,6 +601,7 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
     for (const tab of tabNames) {
       warnings.push(`Sheet read failed for "${tab}": ${msg}`);
       pushLocalOnly(tab, localIndex.get(tab) ?? []);
+      pushLocalUnitOnly(tab, unitIndex.get(tab) ?? []);
     }
   }
 
@@ -662,22 +735,85 @@ export function parsePlaywrightReport(reportPath: string): Map<string, ParsedRes
   return byTc;
 }
 
-function resultBelongsToTab(result: ParsedResult, tab: string): boolean {
+/** Parse Jest `--json --outputFile` report into TC_XXX → result map. */
+export function parseJestReport(reportPath: string): Map<string, ParsedResult> {
+  const raw = readFileSync(reportPath, "utf8");
+  const report = JSON.parse(raw) as {
+    testResults?: {
+      name?: string;
+      assertionResults?: {
+        title?: string;
+        fullName?: string;
+        status?: string;
+        failureMessages?: string[];
+      }[];
+    }[];
+  };
+  const byTc = new Map<string, ParsedResult>();
+
+  for (const fileResult of report.testResults ?? []) {
+    const file = fileResult.name ?? "";
+    for (const assertion of fileResult.assertionResults ?? []) {
+      const title = assertion.title || assertion.fullName || "";
+      const tcId =
+        extractTcId(title) ||
+        extractTcId(assertion.fullName ?? "") ||
+        (() => {
+          const m = `${assertion.fullName ?? ""} ${title}`.match(/(TC[-_]?\d+)/i);
+          return m ? m[1] : null;
+        })();
+      if (!tcId) continue;
+
+      let status = assertion.status ?? "failed";
+      if (status === "pending" || status === "todo" || status === "disabled") {
+        status = "failed";
+      }
+
+      const error =
+        status === "failed"
+          ? (assertion.failureMessages ?? []).filter(Boolean).join("\n---\n")
+          : "";
+
+      byTc.set(normalizeTcId(tcId), {
+        tcId,
+        title,
+        status: status === "passed" ? "passed" : "failed",
+        error: error.trim(),
+        file: file || undefined,
+      });
+    }
+  }
+
+  return byTc;
+}
+
+function suiteFilesForEngine(tab: string, engine: SyncEngine): string[] {
   const suite = getTabSuite(tab);
-  if (!suite?.specs?.length) return true;
+  if (!suite) return [];
+  if (engine === "unit-test") return suite.unitSpecs ?? [];
+  return suite.specs ?? [];
+}
+
+function resultBelongsToTab(
+  result: ParsedResult,
+  tab: string,
+  engine: SyncEngine = "playwright",
+): boolean {
+  const files = suiteFilesForEngine(tab, engine);
+  if (!files.length) return true;
   if (!result.file) return true;
 
-  // Playwright JSON often stores file relative to testDir (e.g. "signin.spec.ts"),
-  // while tab-suites uses repo-relative paths ("playwright-tests/signin.spec.ts").
+  // Reports often store file relative to testDir or as absolute paths.
   const file = result.file.replace(/\\/g, "/");
   const fileBase = file.split("/").pop() ?? file;
-  return suite.specs.some((spec) => {
+  return files.some((spec) => {
     const norm = spec.replace(/\\/g, "/").replace(/^\.\//, "");
     const specBase = norm.split("/").pop() ?? norm;
     return (
       file === norm ||
       file.endsWith(`/${norm}`) ||
       norm.endsWith(`/${file}`) ||
+      file.includes(norm) ||
       fileBase === specBase
     );
   });
@@ -723,12 +859,12 @@ export async function syncTabResults(
     const category = idx.category >= 0 ? String(row[idx.category] ?? "").trim() : "";
     const eng = categorizeEngine(category);
     if (eng === "api") continue;
-    if (engine === "playwright" && eng === "unit-test") continue;
-    if (engine === "unit-test" && eng === "playwright") continue;
+    if (engine === "playwright" && (eng === "unit-test")) continue;
+    if (engine === "unit-test" && eng !== "unit-test") continue;
 
     const result = resultsByTc.get(normalizeTcId(tcRaw));
     if (!result) continue;
-    if (!resultBelongsToTab(result, tab)) continue;
+    if (!resultBelongsToTab(result, tab, engine)) continue;
 
     const status = result.status === "passed" ? "Passed" : "Failed";
     const comment =
@@ -792,12 +928,17 @@ export async function syncSheetsForTabs(
     return ["Sheet sync skipped (E2E_NO_SHEET_SYNC=1)."];
   }
 
-  const resolvedReport = resolve(reportPath ?? getResultsFile());
+  const defaultReport =
+    engine === "unit-test" ? getUnitResultsFile() : getResultsFile();
+  const resolvedReport = resolve(reportPath ?? defaultReport);
   if (!existsSync(resolvedReport)) {
     return [`Sheet sync skipped: report not found at ${resolvedReport}`];
   }
 
-  const resultsByTc = parsePlaywrightReport(resolvedReport);
+  const resultsByTc =
+    engine === "unit-test"
+      ? parseJestReport(resolvedReport)
+      : parsePlaywrightReport(resolvedReport);
   if (!resultsByTc.size) {
     return ["Sheet sync skipped: no TC tests in report."];
   }
@@ -809,7 +950,9 @@ export async function syncSheetsForTabs(
     try {
       const n = await syncTabResults(sheets, tab, resultsByTc, engine);
       if (n === 0) {
-        const forTab = Array.from(resultsByTc.values()).filter((r) => resultBelongsToTab(r, tab)).length;
+        const forTab = Array.from(resultsByTc.values()).filter((r) =>
+          resultBelongsToTab(r, tab, engine),
+        ).length;
         summary.push(
           `${tab}: 0 row(s) updated (${resultsByTc.size} TC(s) in report, ${forTab} matched this tab's specs)`,
         );

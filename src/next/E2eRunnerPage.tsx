@@ -591,27 +591,20 @@ export function E2eRunnerPage() {
           </div>
         </section>
 
-        {isUnitTestEngine && (
-          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
-            Unit Test runner is coming soon. Cases are shown read-only.
-          </div>
-        )}
-
         <div className="relative z-0 mb-3 flex flex-wrap items-center gap-2">
           <Btn
             variant="dark"
             disabled={
               running ||
               !selectedModules.length ||
-              isUnitTestEngine ||
               runnableInModules.length === 0
             }
             title={
-              isUnitTestEngine
-                ? "Unit Test runner coming soon"
-                : runnableInModules.length === 0
-                  ? "No Playwright tests in the selected module(s)"
-                  : undefined
+              runnableInModules.length === 0
+                ? engine === "unit-test"
+                  ? "No Unit Test cases mapped in the selected module(s)"
+                  : "No Playwright tests in the selected module(s)"
+                : undefined
             }
             onClick={runAllInModules}
           >
@@ -626,13 +619,11 @@ export function E2eRunnerPage() {
 
           <Btn
             variant={failedInModules.length > 0 ? "danger" : "ghost"}
-            disabled={running || failedInModules.length === 0 || isUnitTestEngine}
+            disabled={running || failedInModules.length === 0}
             title={
-              isUnitTestEngine
-                ? "Unit Test runner coming soon"
-                : failedInModules.length === 0
-                  ? "No failed tests in the selected module(s)"
-                  : `Re-run ${failedInModules.length} failed ${engine === "playwright" ? "Playwright" : "Unit Test"} test(s)`
+              failedInModules.length === 0
+                ? "No failed tests in the selected module(s)"
+                : `Re-run ${failedInModules.length} failed ${engine === "playwright" ? "Playwright" : "Unit Test"} test(s)`
             }
             onClick={runFailed}
           >
@@ -653,8 +644,7 @@ export function E2eRunnerPage() {
           <Btn
             className="ml-auto"
             variant={checkedInView.length > 0 ? "dark" : "ghost"}
-            disabled={running || checkedInView.length === 0 || isUnitTestEngine}
-            title={isUnitTestEngine ? "Unit Test runner coming soon" : undefined}
+            disabled={running || checkedInView.length === 0}
             onClick={runChecked}
           >
             {runTarget === "checked" ? <IconSpinner /> : <IconPlay />}
@@ -688,7 +678,7 @@ export function E2eRunnerPage() {
                 <th className="w-10 px-3 py-3">
                   <Checkbox
                     checked={allVisibleChecked}
-                    disabled={!visibleCases.length || running || isUnitTestEngine}
+                    disabled={!visibleCases.length || running}
                     onCheckedChange={() => toggleCheckAllVisible()}
                     aria-label="Select all visible tests"
                   />
@@ -729,7 +719,7 @@ export function E2eRunnerPage() {
                     <td className="px-3 py-2 align-middle">
                       <Checkbox
                         checked={checked.has(tc.id)}
-                        disabled={running || isUnitTestEngine}
+                        disabled={running}
                         onCheckedChange={() => toggleCheck(tc.id)}
                         aria-label={`Select ${tc.testCaseId}`}
                       />
@@ -752,8 +742,7 @@ export function E2eRunnerPage() {
                       <Btn
                         variant="ghost"
                         className="h-8 px-2.5 text-xs"
-                        disabled={running || isUnitTestEngine}
-                        title={isUnitTestEngine ? "Unit Test runner coming soon" : undefined}
+                        disabled={running}
                         onClick={() => runOne(tc)}
                       >
                         {runTarget === tc.id ? (

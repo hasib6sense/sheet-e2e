@@ -6,3 +6,4 @@ test-results/
 blob-report/
 credentials/credentials.json
 .env
+jest-results.json

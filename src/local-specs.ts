@@ -6,14 +6,14 @@ export function normalizeTcId(id: string) {
   return id.trim().replace(/[-_\s]/g, "").toLowerCase();
 }
 
-/** TC ids declared in a spec via test("TC_001: ...") or test("TC-001: ...").
+/** TC ids declared via test("TC_001: ..."), it("TC_001: ..."), or hyphen style.
  *  Commented-out tests are ignored so fully-disabled specs do not appear as implemented. */
 export function extractTcIdsFromSpecContent(content: string): string[] {
   const withoutComments = content
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
   const ids: string[] = [];
-  const re = /test\s*\(\s*[`"'](TC[-_]?\d+)/gi;
+  const re = /(?:test|it)\s*\(\s*[`"'](TC[-_]?\d+)/gi;
   let match = re.exec(withoutComments);
   while (match) {
     ids.push(match[1]);
@@ -34,15 +34,19 @@ export type LocalSpecEntry = {
   specFile: string;
 };
 
-/** Every TC found in mapped spec files, keyed by tab. */
-export function indexLocalPlaywrightTests(): Map<string, LocalSpecEntry[]> {
+function indexFromSuiteFiles(
+  filesKey: "specs" | "unitSpecs",
+): Map<string, LocalSpecEntry[]> {
   const byTab = new Map<string, LocalSpecEntry[]>();
 
   for (const suite of getTabSuites()) {
+    const files = filesKey === "specs" ? suite.specs : (suite.unitSpecs ?? []);
+    if (!files.length) continue;
+
     const entries: LocalSpecEntry[] = [];
     const seen = new Set<string>();
 
-    for (const specFile of suite.specs) {
+    for (const specFile of files) {
       for (const testCaseId of extractTcIdsFromSpecFile(specFile)) {
         const key = normalizeTcId(testCaseId);
         if (seen.has(key)) continue;
@@ -59,6 +63,16 @@ export function indexLocalPlaywrightTests(): Map<string, LocalSpecEntry[]> {
   return byTab;
 }
 
+/** Every TC found in mapped Playwright spec files, keyed by tab. */
+export function indexLocalPlaywrightTests(): Map<string, LocalSpecEntry[]> {
+  return indexFromSuiteFiles("specs");
+}
+
+/** Every TC found in mapped unitSpecs (Jest) files, keyed by tab. */
+export function indexLocalUnitTests(): Map<string, LocalSpecEntry[]> {
+  return indexFromSuiteFiles("unitSpecs");
+}
+
 export function tabsWithLocalTests(): string[] {
   return [...indexLocalPlaywrightTests().keys()];
 }
@@ -70,8 +84,22 @@ export function isTcInLocalSpecs(tab: string, testCaseId: string): boolean {
   return entries.some((e) => normalizeTcId(e.testCaseId) === key);
 }
 
+export function isTcInLocalUnitTests(tab: string, testCaseId: string): boolean {
+  const entries = indexLocalUnitTests().get(tab);
+  if (!entries) return false;
+  const key = normalizeTcId(testCaseId);
+  return entries.some((e) => normalizeTcId(e.testCaseId) === key);
+}
+
 export function localSpecFileForTc(tab: string, testCaseId: string): string | undefined {
   const entries = indexLocalPlaywrightTests().get(tab);
+  if (!entries) return undefined;
+  const key = normalizeTcId(testCaseId);
+  return entries.find((e) => normalizeTcId(e.testCaseId) === key)?.specFile;
+}
+
+export function localUnitSpecFileForTc(tab: string, testCaseId: string): string | undefined {
+  const entries = indexLocalUnitTests().get(tab);
   if (!entries) return undefined;
   const key = normalizeTcId(testCaseId);
   return entries.find((e) => normalizeTcId(e.testCaseId) === key)?.specFile;

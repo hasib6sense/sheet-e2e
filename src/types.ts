@@ -50,7 +50,10 @@ export type E2eRunResult = {
 
 export type E2eTabSuite = {
   tab: string;
+  /** Playwright spec paths (Category=Playwright). */
   specs: string[];
+  /** Jest / unit-test file paths (Category=UI). */
+  unitSpecs?: string[];
   project?: string;
   workers?: number;
 };

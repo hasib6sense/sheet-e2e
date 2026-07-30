@@ -13,6 +13,7 @@ export {
   getSpreadsheetId,
   getCredentialsPath,
   getResultsFile,
+  getUnitResultsFile,
   getSkipTabs,
   getTabSuites,
   getTabSuite,
@@ -24,9 +25,12 @@ export {
   extractTcIdsFromSpecContent,
   extractTcIdsFromSpecFile,
   indexLocalPlaywrightTests,
+  indexLocalUnitTests,
   tabsWithLocalTests,
   isTcInLocalSpecs,
+  isTcInLocalUnitTests,
   localSpecFileForTc,
+  localUnitSpecFileForTc,
 } from "./local-specs";
 export type { LocalSpecEntry } from "./local-specs";
 
@@ -44,6 +48,7 @@ export {
   buildTabInfoFromCases,
   clearSheetCaches,
   parsePlaywrightReport,
+  parseJestReport,
   syncTabResults,
   syncSheetsForTabs,
 } from "./google-sheets";

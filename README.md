@@ -59,7 +59,7 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.9
 | Tailwind | Adds `@source` in `globals.css` **and** `content` in `tailwind.config.*` when present |
 | Env | Creates/merges `.env` keys from template |
 | Git | Appends `.gitignore` (auth, results, credentials) |
-| Skill | Copies `.cursor/skills/sheet-playwright-e2e/` |
+| Skills | Copies `.cursor/skills/sheet-playwright-e2e/` and `sheet-unit-test/` |
 | Gate | Writes `e2e-gate.middleware.ts` (merge into your middleware) |
 
 Peers are also listed in README historically as a manual `npm i -D googleapis @playwright/test` — only needed if you used `--no-install`.
@@ -172,10 +172,11 @@ Required columns (aliases supported):
 - Playwright → Passed / Failed (Playwright engine; styled badge)
 - Comment → failure reason for the active engine (cleared on pass)
 
-## Cursor skill
+## Cursor skills
 
-- Shipped in package: `skills/sheet-playwright-e2e/SKILL.md` (copied on init)
-- Personal: `~/.cursor/skills/sheet-playwright-e2e/`
+- `skills/sheet-playwright-e2e/` — Category=`Playwright` → browser E2E (copied on init)
+- `skills/sheet-unit-test/` — Category=`UI` → Jest unit/component tests (copied on init)
+- Personal copies: `~/.cursor/skills/sheet-playwright-e2e/` and `~/.cursor/skills/sheet-unit-test/`
 
 ## CLI
 
@@ -184,8 +185,11 @@ sheet-e2e init [--force] [--minimal] [--no-install] [--browsers]
 sheet-e2e uninstall [-y] [--purge] [--keep-dep]
 sheet-e2e doctor
 sheet-e2e run "Sign In"
+sheet-e2e run "Weekend" --engine unit-test
 sheet-e2e select --all
+sheet-e2e select --engine unit-test
 sheet-e2e sync --tabs "Holiday,Projects"
+sheet-e2e sync --tabs "Weekend" --engine unit-test
 ```
 
 ## Develop / release

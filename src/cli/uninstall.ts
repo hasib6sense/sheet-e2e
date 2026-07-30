@@ -212,6 +212,7 @@ export async function runUninstall(args: string[]) {
   stripTailwind(cwd, appDir);
   stripPackageScripts(cwd);
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-playwright-e2e"));
+  removeTree(cwd, join(cwd, ".cursor/skills/sheet-unit-test"));
 
   console.log("\nDependency");
   npmUninstallPackage(cwd, skipNpm);

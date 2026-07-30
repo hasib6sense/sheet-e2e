@@ -19,6 +19,8 @@ export type ResolvedConfig = {
   spreadsheetId: string;
   credentialsPath: string;
   resultsFile: string;
+  /** Jest JSON output path for Unit Test engine sync. */
+  unitResultsFile: string;
   skipTabs: Set<string>;
   tabSuites: E2eTabSuite[];
   tabSuitesPath: string | null;
@@ -125,10 +127,14 @@ export function loadConfig(cwd = process.cwd(), forceReload = false): ResolvedCo
     fileConfig.resultsFile?.trim() ||
     "playwright-results.json";
 
+  const unitResultsFile =
+    process.env.E2E_UNIT_RESULTS_FILE?.trim() || "jest-results.json";
+
   cachedConfig = {
     spreadsheetId,
     credentialsPath,
     resultsFile,
+    unitResultsFile,
     skipTabs: parseSkipTabs(fileConfig),
     tabSuites: suites,
     tabSuitesPath: suitesPath,
@@ -157,6 +163,10 @@ export function getCredentialsPath(): string {
 
 export function getResultsFile(): string {
   return loadConfig().resultsFile;
+}
+
+export function getUnitResultsFile(): string {
+  return loadConfig().unitResultsFile;
 }
 
 export function getSkipTabs(): Set<string> {

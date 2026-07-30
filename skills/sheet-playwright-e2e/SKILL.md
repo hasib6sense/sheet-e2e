@@ -49,7 +49,7 @@ npx sheet-e2e uninstall -y
 
 Removes runner routes/config patches/scripts/package; keeps Playwright specs and `.env`.
 
-`init` already wires: runner page/APIs, scripts, peers, Playwright scaffold, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skill, optional e2e gate template.
+`init` already wires: runner page/APIs, scripts, peers, Playwright scaffold, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skills (`sheet-playwright-e2e` + `sheet-unit-test`), optional e2e gate template.
 
 Flags: `--minimal`, `--force`, `--no-install`, `--browsers`.
 
@@ -57,7 +57,7 @@ Host layout after init:
 
 | Item | Notes |
 |------|--------|
-| `e2e/tab-suites.json` | Sheet tab → spec path(s), `project`, optional `workers` |
+| `e2e/tab-suites.json` | Sheet tab → `specs` (Playwright), optional `unitSpecs` (Jest), `project`, `workers` |
 | `.env` | `GOOGLE_SPREADSHEET_ID`, `GOOGLE_APPLICATION_CREDENTIALS`, optional test creds |
 | `playwright.config.ts` | `setup` / `chromium` / `chromium-unauth` + JSON reporter |
 | `playwright-tests/auth.setup.ts` | Logged-in storage state |
@@ -67,12 +67,16 @@ Host layout after init:
 
 | Sheet `Category` | Playwright |
 |------------------|------------|
-| **API** | **Omit** — no UI test; runner/`fetchImplementedTestCases` also skips these |
-| Anything else (UI, Playwright, Both, …) | Implement UI assertions |
+| **`Playwright`** or blank/legacy | Implement UI assertions |
+| **`UI`** | **Omit** — Unit Test engine; use `sheet-unit-test` skill |
+| **`API`** | **Omit** entirely — discarded from runner and sync |
 
+- `Playwright` (or blank) rows → `playwright-tests/` specs only.
+- `UI` rows → Jest via `unitSpecs` + `sheet-unit-test` skill — **never** add to Playwright specs.
+- `API` rows → hidden from the runner entirely.
 - Do not port API Expected Results (HTTP status / JSON) as the main Playwright assertion.
-- Cover **every** non-API TC on the tab (do not stop mid-range).
-- Keep sheet TC IDs aligned with `test("TC_XXX: …")` — an off-by-one ID collides with an API row and confuses the runner.
+- Cover **every** `Playwright`-category TC on the tab (do not stop mid-range).
+- Keep sheet TC IDs aligned with `test("TC_XXX: …")` — an off-by-one ID collides and confuses the runner.
 
 ## Pass / fail only
 
@@ -115,7 +119,7 @@ When generating a suite:
 ```
 - [ ] auth.setup.ts writes storage state for chromium project
 - [ ] Authenticated tab → project "chromium"; unauth → "chromium-unauth"
-- [ ] Category !== API rows only; IDs match sheet
+- [ ] Category Playwright/blank only; IDs match sheet (UI → sheet-unit-test)
 - [ ] tab-suites.json entry added
 ```
 
@@ -145,7 +149,7 @@ Skip sync: `E2E_NO_SHEET_SYNC=1`. Do not mark Passed without a green run for tha
 
 ```
 - [ ] Read sheet tab (headers + all TC rows)
-- [ ] Drop Category === API; implement all remaining IDs
+- [ ] Keep Category === Playwright (or blank); omit UI and API
 - [ ] Auth: chromium vs chromium-unauth + auth.setup if needed
 - [ ] Wire e2e/tab-suites.json
 - [ ] Use sheet Test Data / Expected Result (UI)
@@ -155,4 +159,5 @@ Skip sync: `E2E_NO_SHEET_SYNC=1`. Do not mark Passed without a green run for tha
 ## Copy into a repo (optional)
 
 Personal skill lives at `~/.cursor/skills/sheet-playwright-e2e/` (all Cursor projects).
-To version with a repo or the package: copy this folder to `.cursor/skills/sheet-playwright-e2e/` in the host project, or use the copy under `@6sense/sheet-e2e` → `skills/sheet-playwright-e2e/`.
+`sheet-e2e init` also copies `skills/sheet-unit-test/` for Category=`UI` work.
+To version with a repo or the package: copy these folders under `.cursor/skills/` in the host project.

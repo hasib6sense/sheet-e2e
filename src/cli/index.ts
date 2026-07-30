@@ -7,13 +7,37 @@ import { runDoctor } from "./doctor";
 import { runInit } from "./init";
 import { runUninstall } from "./uninstall";
 
+function parseEngine(args: string[]): "playwright" | "unit-test" {
+  const idx = args.indexOf("--engine");
+  if (idx >= 0 && args[idx + 1]) {
+    const v = args[idx + 1].trim().toLowerCase();
+    if (v === "unit-test" || v === "unit" || v === "jest") return "unit-test";
+    if (v === "playwright" || v === "pw") return "playwright";
+    console.error(`Unknown --engine "${args[idx + 1]}". Use playwright or unit-test.`);
+    process.exit(1);
+  }
+  return "playwright";
+}
+
+function stripEngineArgs(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === "--engine") {
+      i += 1;
+      continue;
+    }
+    out.push(args[i]);
+  }
+  return out;
+}
+
 function printHelp() {
   console.log(`
-@6sense/sheet-e2e — Playwright e2e runner + Google Sheet sync
+@6sense/sheet-e2e — Playwright + Unit Test runner + Google Sheet sync
 
 Usage:
   sheet-e2e init [--force] [--minimal] [--no-install] [--browsers]
-      Full host wiring by default (runner + Playwright + Next/Tailwind + env + skill).
+      Full host wiring by default (runner + Playwright + Next/Tailwind + env + skills).
       --minimal     runner shell only (old behavior)
       --force       overwrite existing scaffold files
       --no-install  skip npm i -D googleapis @playwright/test
@@ -27,9 +51,9 @@ Usage:
       Keeps Playwright specs, auth.setup, playwright.config, and .env secrets.
 
   sheet-e2e doctor                      Verify host is ready for the runner
-  sheet-e2e run <TabName>               Run one mapped tab + sync
-  sheet-e2e select [--all]              Interactive / all / E2E_TABS multi-tab run
-  sheet-e2e sync [--tabs a,b] [--report path]   Sync report → sheet
+  sheet-e2e run <TabName> [--engine playwright|unit-test]
+  sheet-e2e select [--all] [--engine playwright|unit-test]
+  sheet-e2e sync [--tabs a,b] [--report path] [--engine playwright|unit-test]
 
 Env:
   GOOGLE_SPREADSHEET_ID
@@ -43,10 +67,12 @@ Env:
 async function cmdRun(args: string[]) {
   clearConfigCache();
   loadConfig();
-  const tabArg = args[0] ?? process.env.E2E_TABS?.split(/[,;]/)[0]?.trim();
+  const engine = parseEngine(args);
+  const rest = stripEngineArgs(args);
+  const tabArg = rest[0] ?? process.env.E2E_TABS?.split(/[,;]/)[0]?.trim();
   const suites = getTabSuites();
   if (!tabArg) {
-    console.error("Usage: sheet-e2e run <SheetTabName>");
+    console.error("Usage: sheet-e2e run <SheetTabName> [--engine playwright|unit-test]");
     console.error("Available:", suites.map((s) => s.tab).join(", ") || "(none — run init)");
     process.exit(1);
   }
@@ -56,21 +82,32 @@ async function cmdRun(args: string[]) {
     console.error("Available:", suites.map((s) => s.tab).join(", "));
     process.exit(1);
   }
-  console.log(`Running: ${suite.tab} → ${suite.specs.join(", ")}`);
-  const result = await runE2eTests({ mode: "tabs", tabs: [suite.tab] });
+  const files = engine === "unit-test" ? (suite.unitSpecs ?? []) : suite.specs;
+  if (!files.length) {
+    console.error(
+      engine === "unit-test"
+        ? `Tab "${suite.tab}" has no unitSpecs mapped in e2e/tab-suites.json`
+        : `Tab "${suite.tab}" has no Playwright specs mapped`,
+    );
+    process.exit(1);
+  }
+  console.log(`Running (${engine}): ${suite.tab} → ${files.join(", ")}`);
+  const result = await runE2eTests({ mode: "tabs", tabs: [suite.tab], engine });
   process.exit(result.exitCode);
 }
 
 async function cmdSelect(args: string[]) {
   clearConfigCache();
   loadConfig();
+  const engine = parseEngine(args);
+  const rest = stripEngineArgs(args);
   const suites = getTabSuites();
   if (!suites.length) {
     console.error("No tab suites mapped. Run: sheet-e2e init  then edit e2e/tab-suites.json");
     process.exit(1);
   }
 
-  const runAll = args.includes("--all");
+  const runAll = rest.includes("--all");
   let selected = suites;
 
   if (!runAll) {
@@ -89,10 +126,10 @@ async function cmdSelect(args: string[]) {
       process.exit(1);
     } else {
       const chosen = await checkbox({
-        message: "Select Google Sheet tab(s) to run Playwright for",
+        message: `Select Google Sheet tab(s) to run (${engine})`,
         required: true,
         choices: suites.map((s) => ({
-          name: `${s.tab}  →  ${s.specs.join(", ")}`,
+          name: `${s.tab}  →  ${(engine === "unit-test" ? (s.unitSpecs ?? []) : s.specs).join(", ") || "(none)"}`,
           value: s.tab,
           checked: false,
         })),
@@ -117,6 +154,7 @@ async function cmdSelect(args: string[]) {
   const result = await runE2eTests({
     mode: "tabs",
     tabs: selected.map((s) => s.tab),
+    engine,
   });
   process.exit(result.exitCode);
 }
@@ -124,6 +162,7 @@ async function cmdSelect(args: string[]) {
 async function cmdSync(args: string[]) {
   clearConfigCache();
   loadConfig();
+  const engine = parseEngine(args);
   let tabs: string[] = [];
   let report: string | undefined;
 
@@ -133,6 +172,8 @@ async function cmdSync(args: string[]) {
       i += 1;
     } else if (args[i] === "--report" && args[i + 1]) {
       report = args[i + 1];
+      i += 1;
+    } else if (args[i] === "--engine") {
       i += 1;
     }
   }
@@ -145,8 +186,8 @@ async function cmdSync(args: string[]) {
     process.exit(1);
   }
 
-  console.log(`\nSyncing ${tabs.join(", ")}…`);
-  const summary = await syncSheetsForTabs(tabs, report);
+  console.log(`\nSyncing (${engine}) ${tabs.join(", ")}…`);
+  const summary = await syncSheetsForTabs(tabs, report, engine);
   for (const line of summary) console.log(line);
 }
 

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "../..");
 const TEMPLATES = join(PKG_ROOT, "templates");
-const SKILL_SRC = join(PKG_ROOT, "skills/sheet-playwright-e2e");
+const SKILL_DIRS = ["sheet-playwright-e2e", "sheet-unit-test"] as const;
 
 function ensureDir(path: string) {
   mkdirSync(path, { recursive: true });
@@ -231,19 +231,22 @@ function mergeGitignore(cwd: string) {
   console.log(`  updated: .gitignore (+ ${toAdd.length} entries)`);
 }
 
-function copySkill(cwd: string, force: boolean) {
-  const dest = join(cwd, ".cursor/skills/sheet-playwright-e2e");
-  if (!existsSync(SKILL_SRC)) {
-    console.log("  skip skill (not in package)");
-    return;
+function copySkills(cwd: string, force: boolean) {
+  for (const name of SKILL_DIRS) {
+    const src = join(PKG_ROOT, "skills", name);
+    const dest = join(cwd, ".cursor/skills", name);
+    if (!existsSync(src)) {
+      console.log(`  skip skill ${name} (not in package)`);
+      continue;
+    }
+    if (!force && existsSync(join(dest, "SKILL.md"))) {
+      console.log(`  skip (exists): ${rel(cwd, dest)}`);
+      continue;
+    }
+    ensureDir(dest);
+    cpSync(src, dest, { recursive: true });
+    console.log(`  wrote: ${rel(cwd, dest)}`);
   }
-  if (!force && existsSync(join(dest, "SKILL.md"))) {
-    console.log(`  skip (exists): ${rel(cwd, dest)}`);
-    return;
-  }
-  ensureDir(dest);
-  cpSync(SKILL_SRC, dest, { recursive: true });
-  console.log(`  wrote: ${rel(cwd, dest)}`);
 }
 
 function mergePackageScripts(cwd: string) {
@@ -391,7 +394,7 @@ Minimal init done. For full host wiring run:
   ensureTailwindSource(cwd, appDir);
   mergeEnvKeys(cwd);
   mergeGitignore(cwd);
-  copySkill(cwd, force);
+  copySkills(cwd, force);
 
   copyTemplate(
     cwd,
@@ -413,6 +416,6 @@ Done. Only human steps left:
   6. Open /e2e-runner (dev) or run: npm run test:e2e:doctor
 
 Sheet columns: Test Case ID, Category, UI Status, Playwright, Comment
-Spec generation from sheet rows is separate (Cursor skill) — not part of init.
+Spec generation from sheet rows is separate (Cursor skills) — not part of init.
 `);
 }
