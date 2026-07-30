@@ -16,6 +16,19 @@ export type LogLineKind =
   | "muted"
   | "default";
 
+/** Jest-indented console output and object dumps — not describe() group headers. */
+export function isConsoleOrDumpLine(line: string): boolean {
+  const t = line.trim();
+  if (/^console\.(log|warn|error|info|debug)\b/.test(t)) return true;
+  if (/^[A-Za-z_$][\w$]*:\s/.test(t)) return true;
+  if (/^[\[\{]/.test(t) || /^[\]\}],?$/.test(t)) return true;
+  if (/^['"`]/.test(t)) return true;
+  if (/^-?\d[\d.eE+-]*,?$/.test(t)) return true;
+  if (/^(true|false|null|undefined),?$/i.test(t)) return true;
+  if (/\[(Array|Object|Function|Date|RegExp|Symbol)\]/i.test(t)) return true;
+  return false;
+}
+
 export function classifyLogLine(line: string): LogLineKind {
   const t = line.trim();
   if (!t) return "muted";
@@ -37,8 +50,28 @@ export function classifyLogLine(line: string): LogLineKind {
   if (/\d+\s+passed\b/i.test(t) && !/\bfailed\b/i.test(t)) return "summary-pass";
   if (/^\d+\s+failed\b/i.test(t)) return "summary-fail";
   if (/Running \d+ tests/i.test(t)) return "muted";
-  // Jest describe() group headers (indented, no result mark)
-  if (/^\s{2,}\S/.test(line) && !/^[✓✔✘✕○◌]/.test(t) && !/\|/.test(t)) return "group";
+  // Keep Jest failure detail blocks as normal text so the UI doesn't
+  // render them with the uppercase group-label styling.
+  if (
+    /^\s*●\s+/.test(line) ||
+    /^\s*expect\(/.test(line) ||
+    /^\s*Expected\b/.test(line) ||
+    /^\s*Received\b/.test(line) ||
+    /^\s*at\s+/.test(line) ||
+    /^\s*</.test(line)
+  ) {
+    return "default";
+  }
+  // Jest describe() group headers (indented, no result mark).
+  // Skip console.log dumps — they are indented too but must not get uppercase group styling.
+  if (
+    /^\s{2,}\S/.test(line) &&
+    !/^[✓✔✘✕○◌]/.test(t) &&
+    !/\|/.test(t) &&
+    !isConsoleOrDumpLine(line)
+  ) {
+    return "group";
+  }
   // Coverage / table dumps from Jest
   if (
     /^\|/.test(t) ||
