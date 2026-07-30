@@ -23,10 +23,7 @@ function ChevronIcon({ open }: { open: boolean }) {
       viewBox="0 0 20 20"
       fill="none"
       aria-hidden
-      className={cn(
-        "h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-150",
-        open && "rotate-180",
-      )}
+      className={cn("sheet-e2e-select__chevron", open && "sheet-e2e-select__chevron--open")}
     >
       <path
         d="M5.25 7.75 10 12.5l4.75-4.75"
@@ -63,57 +60,57 @@ export function SingleSelect({
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("sheet-e2e-select", className)}>
       <button
         type="button"
         disabled={disabled || !options.length}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-normal shadow-sm",
-          "hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-400",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-        )}
+        className="sheet-e2e-select__trigger"
       >
-        <span className="min-w-0 flex-1 truncate text-left text-neutral-900">{triggerLabel}</span>
+        <span className="sheet-e2e-select__trigger-label">{triggerLabel}</span>
         <ChevronIcon open={open} />
       </button>
       {open && (
         <>
           <button
             type="button"
-            className="fixed inset-0 z-[199] cursor-default"
+            className="sheet-e2e-select__backdrop"
             aria-label="Close select"
             onClick={() => setOpen(false)}
           />
           <div
             role="listbox"
-            className="absolute z-[200] mt-1.5 w-full overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-xl"
+            className="sheet-e2e-select__menu"
+            style={{ paddingTop: 4, paddingBottom: 4 }}
           >
-            {options.map((opt) => {
-              const active = opt.value === value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  className={cn(
-                    "flex w-full items-center px-3 py-2.5 text-left text-sm",
-                    active
-                      ? "bg-neutral-100 font-medium text-neutral-900"
-                      : "text-neutral-800 hover:bg-neutral-50",
-                  )}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setOpen(false);
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+            <div
+              className="sheet-e2e-select__menu-scroll"
+              onWheel={(e) => e.stopPropagation()}
+            >
+              {options.map((opt) => {
+                const active = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    className={cn(
+                      "sheet-e2e-select__option",
+                      active && "sheet-e2e-select__option--active",
+                    )}
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}

@@ -24,10 +24,7 @@ function ChevronIcon({ open }: { open: boolean }) {
       viewBox="0 0 20 20"
       fill="none"
       aria-hidden
-      className={cn(
-        "h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-150",
-        open && "rotate-180",
-      )}
+      className={cn("sheet-e2e-select__chevron", open && "sheet-e2e-select__chevron--open")}
     >
       <path
         d="M5.25 7.75 10 12.5l4.75-4.75"
@@ -72,38 +69,37 @@ export function ModuleMultiSelect({
         : `${value.length} modules selected`;
 
   return (
-    <div className="relative">
+    <div className="sheet-e2e-select">
       <button
         type="button"
         disabled={disabled || !options.length}
         aria-expanded={open}
         onClick={() => handleOpenChange(!open)}
-        className={cn(
-          "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-normal shadow-sm",
-          "hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-400",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-        )}
+        className="sheet-e2e-select__trigger"
       >
-        <span className="min-w-0 flex-1 truncate text-left text-neutral-900">{triggerLabel}</span>
+        <span className="sheet-e2e-select__trigger-label">{triggerLabel}</span>
         <ChevronIcon open={open} />
       </button>
       {open && (
         <>
           <button
             type="button"
-            className="fixed inset-0 z-[199] cursor-default"
+            className="sheet-e2e-select__backdrop"
             aria-label="Close module picker"
             onClick={() => handleOpenChange(false)}
           />
-          <div className="absolute z-[200] mt-1.5 w-full overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl">
-            <div className="border-b border-neutral-100 bg-neutral-50 px-3 py-2">
-              <p className="text-xs font-medium text-neutral-600">Select one or more modules</p>
+          <div className="sheet-e2e-select__menu">
+            <div className="sheet-e2e-select__menu-header">
+              <p>Select one or more modules</p>
             </div>
-            <div className="max-h-56 overflow-y-auto p-1">
+            <div
+              className="sheet-e2e-select__menu-scroll"
+              onWheel={(e) => e.stopPropagation()}
+            >
               {options.map((opt) => (
                 <label
                   key={opt.value}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2.5 hover:bg-neutral-50"
+                  className="sheet-e2e-select__option"
                   onClick={(e) => {
                     e.preventDefault();
                     toggle(opt.value);
@@ -114,10 +110,8 @@ export function ModuleMultiSelect({
                     onCheckedChange={() => toggle(opt.value)}
                     aria-label={opt.label}
                   />
-                  <span className="flex-1 text-sm text-neutral-900">{opt.label}</span>
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                    {opt.count}
-                  </span>
+                  <span className="sheet-e2e-select__option-label">{opt.label}</span>
+                  <span className="sheet-e2e-select__count">{opt.count}</span>
                 </label>
               ))}
             </div>
