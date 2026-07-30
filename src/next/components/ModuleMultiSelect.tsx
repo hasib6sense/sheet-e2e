@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "../cn";
-import { Checkbox } from "./Checkbox";
+import { Checkbox } from "./Checkbox.tsx";
 
 export type ModuleOption = {
   value: string;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { stripAnsi } from "../../strip-ansi";
-import { RunLog } from "./RunLog";
+import { RunLog } from "./RunLog.tsx";
 
 export type RunOutputState = {
   running: boolean;

@@ -5,11 +5,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { E2eTabInfo, E2eTestCase } from "../types";
 import type { CategoryEngine } from "../google-sheets";
 import { formatErrorForSheet } from "../format-error";
-import { cn } from "./cn";
-import { ModuleMultiSelect } from "./components/ModuleMultiSelect";
-import { SingleSelect } from "./components/SingleSelect";
-import { RunOutputPanel } from "./components/RunOutputPanel";
-import { Checkbox } from "./components/Checkbox";
+import { cn } from "./cn.ts";
+import { ModuleMultiSelect } from "./components/ModuleMultiSelect.tsx";
+import { SingleSelect } from "./components/SingleSelect.tsx";
+import { RunOutputPanel } from "./components/RunOutputPanel.tsx";
+import { Checkbox } from "./components/Checkbox.tsx";
 
 type EngineMode = "playwright" | "unit-test";
 

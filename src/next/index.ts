@@ -1,6 +1,6 @@
-export { E2eRunnerPage } from "./E2eRunnerPage";
-export { ModuleMultiSelect } from "./components/ModuleMultiSelect";
-export { SingleSelect } from "./components/SingleSelect";
-export { RunOutputPanel } from "./components/RunOutputPanel";
-export { RunLog } from "./components/RunLog";
-export { Checkbox } from "./components/Checkbox";
+export { E2eRunnerPage } from "./E2eRunnerPage.tsx";
+export { ModuleMultiSelect } from "./components/ModuleMultiSelect.tsx";
+export { SingleSelect } from "./components/SingleSelect.tsx";
+export { RunOutputPanel } from "./components/RunOutputPanel.tsx";
+export { RunLog } from "./components/RunLog.tsx";
+export { Checkbox } from "./components/Checkbox.tsx";
