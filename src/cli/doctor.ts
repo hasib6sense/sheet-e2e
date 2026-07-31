@@ -1,6 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getCredentialsPath, getSpreadsheetId, getTabSuites, loadConfig, clearConfigCache } from "../config";
+import {
+  getCredentialsPath,
+  getRunnerPageUrl,
+  getSpreadsheetId,
+  getTabSuites,
+  loadConfig,
+  clearConfigCache,
+} from "../config";
+import { printRunnerAccessInfo } from "./runner-access";
 
 type Check = { ok: boolean; label: string; detail?: string };
 
@@ -109,7 +117,13 @@ export async function runDoctor() {
   console.log(
     failed
       ? `\n${failed} check(s) failed. Re-run: npx sheet-e2e init\n`
-      : "\nAll checks passed. Open /e2e-runner or npm run test:e2e\n",
+      : `\nAll checks passed.\n`,
   );
+  if (!failed) {
+    printRunnerAccessInfo(cwd);
+    console.log(`Or run from CLI: npm run test:e2e\n`);
+  } else {
+    console.log(`  tip: after fixing, runner UI will be at ${getRunnerPageUrl(cwd)}\n`);
+  }
   process.exit(failed ? 1 : 0);
 }

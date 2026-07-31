@@ -61,6 +61,7 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.9
 | Git | Appends `.gitignore` (auth, results, credentials) |
 | Skills | Copies `.cursor/skills/connected-google-sheet/`, `sheet-driven-qa/`, `sheet-playwright-e2e/`, `sheet-unit-test/` |
 | MCP | Writes `.cursor/mcp.json` for project-local `google-sheet-mcp` (skipped if exists unless `--force`) |
+| Docs | Writes `e2e/README.md` with Runner URL (`/e2e-runner`) and prints it at end of init |
 | Gate | Writes `e2e-gate.middleware.ts` (merge into your middleware) |
 
 Peers are also listed in README historically as a manual `npm i -D googleapis @playwright/test` — only needed if you used `--no-install`.
@@ -85,9 +86,10 @@ Do these **after** `init` / `doctor` before using the runner:
 8. **Run**
    ```bash
    npm run dev          # app on baseURL (default localhost:3000)
-   # open http://localhost:3000/e2e-runner
+   # open the Runner URL printed by init (default http://localhost:3000/e2e-runner)
+   # see e2e/README.md
    npm run test:e2e     # or test:e2e:all / test:e2e:tab "Tab Name"
-   npx sheet-e2e doctor
+   npx sheet-e2e doctor # also prints the Runner URL
    ```
 
 ### Checklist

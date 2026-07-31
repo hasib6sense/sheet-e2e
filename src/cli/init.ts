@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync } from "node
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { printRunnerAccessInfo } from "./runner-access";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "../..");
@@ -358,6 +359,7 @@ export async function runInit(args: string[]) {
   ensureDir(join(cwd, "e2e"));
   copyTemplate(cwd, "tab-suites.json", join(cwd, "e2e/tab-suites.json"), force);
   copyTemplate(cwd, "env.example", join(cwd, "e2e/env.example"), force);
+  copyTemplate(cwd, "e2e-README.md", join(cwd, "e2e/README.md"), force);
   if (!existsSync(join(cwd, ".env.example"))) {
     copyTemplate(cwd, "env.example", join(cwd, ".env.example"), force);
   }
@@ -375,8 +377,8 @@ export async function runInit(args: string[]) {
   mergePackageScripts(cwd);
 
   if (minimal) {
-    console.log(`
-Minimal init done. For full host wiring run:
+    printRunnerAccessInfo(cwd);
+    console.log(`Minimal init done. For full host wiring run:
   npx sheet-e2e init
 `);
     return;
@@ -415,14 +417,16 @@ Minimal init done. For full host wiring run:
     `  tip: merge ${appDir}/e2e-gate.middleware.ts into middleware.ts (or rename) to gate /e2e-runner in production`,
   );
 
-  console.log(`
-Done. Only human steps left:
+  printRunnerAccessInfo(cwd);
+
+  console.log(`Done. Only human steps left:
   1. Set GOOGLE_SPREADSHEET_ID in .env
   2. Place service-account JSON at credentials/credentials.json (or path in GOOGLE_APPLICATION_CREDENTIALS)
   3. Share the spreadsheet with that service account as Editor
   4. Adjust playwright-tests/auth.setup.ts selectors to your sign-in page
   5. Map real sheet tabs → specs in e2e/tab-suites.json
-  6. Open /e2e-runner (dev) or run: npm run test:e2e:doctor
+  6. npm run dev → open the Runner URL printed above (also documented in e2e/README.md)
+  7. Or verify with: npm run test:e2e:doctor
 
 Sheet columns: Test Case ID, Category, UI Status, Playwright, Comment
 Spec generation from sheet rows is separate (Cursor skills) — not part of init.

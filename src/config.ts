@@ -175,6 +175,23 @@ export function clearConfigCache() {
   loadedDotEnvCwd = null;
 }
 
+/** App origin used by Playwright + runner links (`PLAYWRIGHT_BASE_URL`). */
+export function getAppBaseUrl(cwd = process.cwd()): string {
+  loadHostDotEnv(cwd);
+  const raw = process.env.PLAYWRIGHT_BASE_URL?.trim() || "http://localhost:3000";
+  return raw.replace(/\/+$/, "");
+}
+
+/** Full browser URL for the hosted runner page. */
+export function getRunnerPageUrl(cwd = process.cwd()): string {
+  return `${getAppBaseUrl(cwd)}/e2e-runner`;
+}
+
+/** App-router path for the runner page. */
+export function getRunnerPagePath(): string {
+  return "/e2e-runner";
+}
+
 export function getSpreadsheetId(): string {
   const id = loadConfig().spreadsheetId;
   if (!id) {

@@ -200,6 +200,7 @@ export async function runUninstall(args: string[]) {
   removeFile(cwd, join(cwd, appDir, "e2e-gate.middleware.ts"));
   removeFile(cwd, join(cwd, "e2e/tab-suites.json"));
   removeFile(cwd, join(cwd, "e2e/env.example"));
+  removeFile(cwd, join(cwd, "e2e/README.md"));
   if (purge) {
     removeTree(cwd, join(cwd, "e2e"));
     removeFile(cwd, join(cwd, "playwright-tests/example.spec.ts"));
