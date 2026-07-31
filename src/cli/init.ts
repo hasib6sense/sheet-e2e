@@ -6,7 +6,12 @@ import { spawnSync } from "node:child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "../..");
 const TEMPLATES = join(PKG_ROOT, "templates");
-const SKILL_DIRS = ["sheet-playwright-e2e", "sheet-unit-test"] as const;
+const SKILL_DIRS = [
+  "connected-google-sheet",
+  "sheet-driven-qa",
+  "sheet-playwright-e2e",
+  "sheet-unit-test",
+] as const;
 
 function ensureDir(path: string) {
   mkdirSync(path, { recursive: true });
@@ -395,6 +400,10 @@ Minimal init done. For full host wiring run:
   mergeEnvKeys(cwd);
   mergeGitignore(cwd);
   copySkills(cwd, force);
+  copyTemplate(cwd, "mcp.google-sheets.json", join(cwd, ".cursor/mcp.json"), force);
+  console.log(
+    "  tip: npm i -D google-sheet-mcp (Sheets MCP from node_modules; see connected-google-sheet skill)",
+  );
 
   copyTemplate(
     cwd,

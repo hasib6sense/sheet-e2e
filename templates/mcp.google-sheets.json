@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "google-sheets": {
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/node_modules/google-sheet-mcp/src/server/server.mjs"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "${workspaceFolder}/credentials/credentials.json"
+      }
+    }
+  }
+}

@@ -13,6 +13,8 @@ description: >-
 Project-agnostic rules for Google Sheet → Playwright UI suites using `@6sense/sheet-e2e`.
 Override paths, base URL, and spreadsheet ID from the host repo / `.env` — do not hardcode product names.
 
+**Connected sheet:** Before reading any TC rows, follow `.cursor/skills/connected-google-sheet/SKILL.md`. Use `GOOGLE_SPREADSHEET_ID` from `.env` on every Sheets MCP call — never a previously connected MCP default.
+
 ## When this skill applies
 
 - New project: install runner + generate first suites from a sheet tab
@@ -23,7 +25,7 @@ Override paths, base URL, and spreadsheet ID from the host repo / `.env` — do 
 ### Installation
 
 ```bash
-npm i -D github:hasib6sense/sheet-e2e#v0.1.6
+npm i -D github:hasib6sense/sheet-e2e#main
 npx sheet-e2e init              # full host wiring (default)
 # npx sheet-e2e init --browsers # also install Playwright browsers
 npx sheet-e2e doctor
@@ -34,11 +36,12 @@ Do **not** use `--force` if the host already has `playwright.config.ts` / `auth.
 ### After installation (manual)
 
 1. Set `GOOGLE_SPREADSHEET_ID` + `GOOGLE_APPLICATION_CREDENTIALS` in `.env`
-2. Place service-account JSON; share the sheet as **Editor**
-3. Tweak `playwright-tests/auth.setup.ts` for your sign-in UI
-4. Map tabs in `e2e/tab-suites.json` (`chromium` vs `chromium-unauth`)
-5. Write non-API Playwright specs (this skill)
-6. Open `/e2e-runner` or `npm run test:e2e`
+2. Place service-account JSON at `credentials/credentials.json`; share the sheet as **Editor**
+3. Enable Sheets MCP via project `.cursor/mcp.json` (runs `google-sheet-mcp` from `node_modules` — see `connected-google-sheet` skill)
+4. Tweak `playwright-tests/auth.setup.ts` for your sign-in UI
+5. Map tabs in `e2e/tab-suites.json` (`chromium` vs `chromium-unauth`)
+6. Write non-API Playwright specs (this skill)
+7. Open `/e2e-runner` or `npm run test:e2e`
 
 ### Uninstall
 
@@ -49,7 +52,7 @@ npx sheet-e2e uninstall -y
 
 Removes runner routes/config patches/scripts/package; keeps Playwright specs and `.env`.
 
-`init` already wires: runner page/APIs, scripts, peers, Playwright scaffold, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skills (`sheet-playwright-e2e` + `sheet-unit-test`), optional e2e gate template.
+`init` already wires: runner page/APIs, scripts, peers, Playwright scaffold, Next `transpilePackages`, Tailwind scan, `.env` keys, `.gitignore`, Cursor skills (`connected-google-sheet`, `sheet-driven-qa`, `sheet-playwright-e2e`, `sheet-unit-test`), optional e2e gate template.
 
 Flags: `--minimal`, `--force`, `--no-install`, `--browsers`.
 
@@ -96,7 +99,7 @@ Read the full tab before writing. Use sheet values; do not invent nicer emails/O
 | Pre-Conditions | `beforeEach` / helpers / mocks / `sessionStorage` |
 | Test Steps | Action order |
 | Test Data | Exact fills; `N/A` = no payload; honor quoted spaces |
-| Endpoint | `page.goto` + URL asserts. If the cell starts with `Protected`, strip that marker and use the remaining route as the real endpoint, whether it is written as `Protected /users` or as `Protected` on one line and `/users` on the next line. |
+| Endpoint | `page.goto` + URL asserts. If the cell is multi-line like `Protected` then `/leave-management/holidays`, use the route as the real endpoint and treat `Protected` as an auth hint. |
 | Expected Result | UI text, visibility, redirects |
 | Playwright / UI Status / Comment | Sync after run — never invent Passed |
 
@@ -116,7 +119,7 @@ When generating a suite:
 3. Do **not** invent a second login-setup file; do not put authenticated tabs on `chromium-unauth`.
 4. Specs may re-login only as a **fallback** if the page lands on Sign In (expired storage).
 5. Logged-out auth UI → `"project": "chromium-unauth"`; never depend on `auth.setup`.
-6. If the `Endpoint` cell starts with `Protected`, the case should be treated as authenticated by default and the remaining route should be used as the URL.
+6. If the `Endpoint` cell starts with `Protected` and the next line is a route, the route is the URL and the suite should be treated as authenticated by default.
 
 ```
 - [ ] auth.setup.ts writes storage state for chromium project
@@ -160,6 +163,5 @@ Skip sync: `E2E_NO_SHEET_SYNC=1`. Do not mark Passed without a green run for tha
 
 ## Copy into a repo (optional)
 
-Personal skill lives at `~/.cursor/skills/sheet-playwright-e2e/` (all Cursor projects).
-`sheet-e2e init` also copies `skills/sheet-unit-test/` for Category=`UI` work.
-To version with a repo or the package: copy these folders under `.cursor/skills/` in the host project.
+`sheet-e2e init` copies package skills under `.cursor/skills/` (`connected-google-sheet`, `sheet-driven-qa`, `sheet-playwright-e2e`, `sheet-unit-test`).
+Personal copies may also live under `~/.cursor/skills/` (all Cursor projects).

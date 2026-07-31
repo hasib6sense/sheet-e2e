@@ -13,6 +13,8 @@ description: >-
 Project-agnostic rules for Google Sheet → Jest unit/component suites using `@6sense/sheet-e2e`.
 Override paths and spreadsheet ID from the host repo / `.env` — do not hardcode product names.
 
+**Connected sheet:** Before reading any TC rows, follow `.cursor/skills/connected-google-sheet/SKILL.md`. Use `GOOGLE_SPREADSHEET_ID` from `.env` on every Sheets MCP call — never a previously connected MCP default.
+
 ## When this skill applies
 
 - Generating or fixing **Category=`UI`** tests from a sheet tab
@@ -46,7 +48,7 @@ Read the full tab before writing. Use sheet values; do not invent nicer inputs.
 | Pre-Conditions | Mocks, providers, fixtures, `beforeEach` |
 | Test Steps | Arrange → act → assert order |
 | Test Data | Exact inputs; `N/A` = no payload; honor quoted spaces |
-| Endpoint | Component route / module under test (not browser `page.goto`). If the cell starts with `Protected`, strip that marker and use the remaining route for context, whether it is written as `Protected /users` or as `Protected` on one line and `/users` on the next line. Treat `Protected` as an auth hint for setup/mocks. |
+| Endpoint | Component route / module under test (not browser `page.goto`). If the cell is multi-line like `Protected` then `/leave-management/holidays`, use the route for context and treat `Protected` as an auth hint for setup/mocks. |
 | Expected Result | Component/DOM/hook/util assertions |
 | UI Status / Comment | Sync after Unit Test run — never invent Passed |
 
@@ -109,5 +111,5 @@ Skip sync: `E2E_NO_SHEET_SYNC=1`. Jest JSON report defaults to `jest-results.jso
 
 ## Copy into a repo (optional)
 
-Shipped in package: `skills/sheet-unit-test/` (copied on `sheet-e2e init` next to `sheet-playwright-e2e`).
+Shipped in package: `skills/sheet-unit-test/` (copied on `sheet-e2e init` with the other sheet skills).
 Personal copy: `~/.cursor/skills/sheet-unit-test/`.
