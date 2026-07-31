@@ -40,6 +40,27 @@ function shellQuote(arg: string): string {
   return arg;
 }
 
+/** Hide long TC_ID regex lists from the runner UI command echo. */
+function formatCmdForDisplay(args: string[]): string {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i]!;
+    const prev = out[out.length - 1];
+    const isFilterFlag =
+      prev === "--testNamePattern" ||
+      prev === "--grep" ||
+      prev === "-t" ||
+      prev === "-g";
+    if (isFilterFlag && (arg.includes("TC_") || arg.includes("|") || arg.length > 80)) {
+      const count = Math.max(1, arg.split("|").length);
+      out.push(`<${count} cases>`);
+      continue;
+    }
+    out.push(arg);
+  }
+  return out.join(" ");
+}
+
 function teeOutput(text: string, onOutput?: (chunk: string) => void) {
   onOutput?.(text);
   process.stdout.write(text);
@@ -76,7 +97,7 @@ function runPlaywright(
   }
 
   const args = rawArgs.map((a) => (opts.grep && a === opts.grep ? shellQuote(a) : a));
-  teeOutput(`\n> npx ${args.join(" ")}\n\n`, opts.onOutput);
+  teeOutput(`\n> npx ${formatCmdForDisplay(args)}\n\n`, opts.onOutput);
 
   return new Promise((resolvePromise) => {
     if (opts.signal?.aborted) {
@@ -172,7 +193,7 @@ function runJest(
 
   const args = rawArgs.map((a) => (opts.grep && a === opts.grep ? shellQuote(a) : a));
   const env: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "1" };
-  teeOutput(`\n> npx ${args.join(" ")}\n\n`, opts.onOutput);
+  teeOutput(`\n> npx ${formatCmdForDisplay(args)}\n\n`, opts.onOutput);
 
   return new Promise((resolvePromise) => {
     if (opts.signal?.aborted) {
