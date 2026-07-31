@@ -556,6 +556,15 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
       const pushedKeys = new Set(
         cases.filter((c) => c.tab === tab).map((c) => normalizeTcId(c.testCaseId)),
       );
+      // Full sheet index (not only Playwright localKeys) so we never re-label
+      // Category=Playwright rows as Unit Test just because unitSpecs also has them.
+      const sheetByTcAll = new Map<string, E2eTestCase>();
+      for (const row of rows) {
+        const tc = rowToTestCase(tab, row, headers);
+        if (!tc) continue;
+        sheetByTcAll.set(normalizeTcId(tc.testCaseId), tc);
+      }
+
       for (const row of rows) {
         const tc = rowToTestCase(tab, row, headers);
         if (!tc) continue;
@@ -574,10 +583,16 @@ export async function fetchImplementedTestCasesWithMeta(tabFilter?: string[]): P
         pushedKeys.add(key);
       }
 
-      // Local unitSpecs TCs not on the sheet (or sheet read missed them).
+      // Local unitSpecs TCs not on the sheet at all (drafts). Never invent Category=UI
+      // for IDs that already exist on the sheet as Playwright/API.
       for (const entry of unitEntries) {
         const key = normalizeTcId(entry.testCaseId);
         if (pushedKeys.has(key)) continue;
+        const onSheet = sheetByTcAll.get(key);
+        if (onSheet) {
+          // Sheet owns the Category — Playwright/API rows belong to other engines.
+          continue;
+        }
         cases.push({
           id: `${tab}::${entry.testCaseId}`,
           tab,
