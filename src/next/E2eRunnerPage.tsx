@@ -323,6 +323,7 @@ export function E2eRunnerPage() {
   );
 
   const isUnitTestEngine = engine === "unit-test";
+  const controlsLocked = loading || running;
   const runnableInModules = useMemo(
     () => moduleCases.filter((c) => c.runnable),
     [moduleCases],
@@ -455,10 +456,11 @@ export function E2eRunnerPage() {
             const code = event.exitCode ?? 1;
             setLastExitCode(code);
             appendLog(`\nExit code: ${code}\n`);
-            // End "running" UI as soon as Playwright finishes — don't wait for sheet case refresh.
+            // End "running" UI as soon as tests finish — show case-table loading while refreshing.
             markRunLabelFinished();
             setRunning(false);
             setRunTarget(null);
+            setLoading(true);
           }
         }
       }
@@ -564,7 +566,7 @@ export function E2eRunnerPage() {
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Engine</label>
               <SingleSelect
                 value={engine}
-                disabled={running}
+                disabled={controlsLocked}
                 options={[
                   { value: "playwright", label: "Playwright" },
                   { value: "unit-test", label: "Unit Test" },
@@ -583,7 +585,7 @@ export function E2eRunnerPage() {
                 value={selectedModules}
                 onChange={handleModulesChange}
                 onOpenChange={setModulePickerOpen}
-                disabled={!moduleOptions.length || running}
+                disabled={!moduleOptions.length || controlsLocked}
               />
             </div>
 
@@ -593,27 +595,34 @@ export function E2eRunnerPage() {
                 placeholder="TC ID, title, module…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                disabled={!selectedModules.length}
+                disabled={controlsLocked || !selectedModules.length}
                 className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm disabled:opacity-50"
               />
             </div>
 
             <div className="flex items-center gap-3 pb-0.5">
               <label
-                className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600"
+                className={`flex items-center gap-2 text-sm text-neutral-600 ${
+                  controlsLocked ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                }`}
                 onClick={(e) => {
                   e.preventDefault();
+                  if (controlsLocked) return;
                   setSyncSheet((v) => !v);
                 }}
               >
-                <Checkbox checked={syncSheet} onCheckedChange={setSyncSheet} />
+                <Checkbox
+                  checked={syncSheet}
+                  disabled={controlsLocked}
+                  onCheckedChange={setSyncSheet}
+                />
                 Sync sheet after run
               </label>
               <Btn
                 variant="ghost"
                 className="h-9 w-9 px-0"
                 onClick={() => void loadCases()}
-                disabled={loading || running}
+                disabled={controlsLocked}
                 title="Refresh"
               >
                 {loading ? <IconSpinner /> : <IconRefresh />}
@@ -626,7 +635,7 @@ export function E2eRunnerPage() {
           <Btn
             variant="dark"
             disabled={
-              running ||
+              controlsLocked ||
               !selectedModules.length ||
               runnableInModules.length === 0
             }
@@ -650,7 +659,7 @@ export function E2eRunnerPage() {
 
           <Btn
             variant={failedInModules.length > 0 ? "danger" : "ghost"}
-            disabled={running || failedInModules.length === 0}
+            disabled={controlsLocked || failedInModules.length === 0}
             title={
               failedInModules.length === 0
                 ? "No failed tests in the selected module(s)"
@@ -666,16 +675,20 @@ export function E2eRunnerPage() {
           </Btn>
 
           <span className="text-sm text-neutral-500">
-            {visibleCases.length === moduleCases.length
-              ? `${visibleCases.length} tests shown`
-              : `${visibleCases.length} of ${moduleCases.length} tests shown`}
-            {failedInModules.length > 0 ? ` · ${failedInModules.length} failed` : ""}
+            {loading
+              ? "Loading tests…"
+              : visibleCases.length === moduleCases.length
+                ? `${visibleCases.length} tests shown`
+                : `${visibleCases.length} of ${moduleCases.length} tests shown`}
+            {!loading && failedInModules.length > 0
+              ? ` · ${failedInModules.length} failed`
+              : ""}
           </span>
 
           <Btn
             className="ml-auto"
             variant={checkedInView.length > 0 ? "dark" : "ghost"}
-            disabled={running || checkedInView.length === 0}
+            disabled={controlsLocked || checkedInView.length === 0}
             onClick={runChecked}
           >
             {runTarget === "checked" ? <IconSpinner /> : <IconPlay />}
@@ -703,7 +716,7 @@ export function E2eRunnerPage() {
                 <th className="w-10 px-3 py-3">
                   <Checkbox
                     checked={allVisibleChecked}
-                    disabled={!visibleCases.length || running}
+                    disabled={controlsLocked || !visibleCases.length}
                     onCheckedChange={() => toggleCheckAllVisible()}
                     aria-label="Select all visible tests"
                   />
@@ -720,10 +733,13 @@ export function E2eRunnerPage() {
               </tr>
             </thead>
             <tbody>
-              {loading && !visibleCases.length ? (
+              {loading ? (
                 <tr>
                   <td colSpan={colSpan} className="px-3 py-12 text-center text-neutral-500">
-                    Loading tests…
+                    <span className="inline-flex items-center gap-2">
+                      <IconSpinner />
+                      Loading tests…
+                    </span>
                   </td>
                 </tr>
               ) : !selectedModules.length ? (
@@ -744,7 +760,7 @@ export function E2eRunnerPage() {
                     <td className="px-3 py-2 align-middle">
                       <Checkbox
                         checked={checked.has(tc.id)}
-                        disabled={running}
+                        disabled={controlsLocked}
                         onCheckedChange={() => toggleCheck(tc.id)}
                         aria-label={`Select ${tc.testCaseId}`}
                       />
@@ -767,7 +783,7 @@ export function E2eRunnerPage() {
                       <Btn
                         variant="ghost"
                         className="h-8 px-2.5 text-xs"
-                        disabled={running}
+                        disabled={controlsLocked}
                         onClick={() => runOne(tc)}
                       >
                         {runTarget === tc.id ? (
