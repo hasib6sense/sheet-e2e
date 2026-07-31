@@ -664,20 +664,91 @@ type ParsedResult = {
   file?: string;
 };
 
+type PlaywrightResult = {
+  status?: string;
+  error?: { message?: string };
+  errors?: { message?: string }[];
+};
+
+type PlaywrightTest = {
+  projectName?: string;
+  status?: string;
+  results?: PlaywrightResult[];
+};
+
+function collectResultErrors(results: PlaywrightResult[]): string {
+  const parts: string[] = [];
+  for (const r of results) {
+    const fromList = (r.errors ?? []).map((e) => e.message).filter(Boolean) as string[];
+    if (fromList.length) {
+      parts.push(...fromList);
+      continue;
+    }
+    if (r.error?.message) parts.push(r.error.message);
+  }
+  return parts.join("\n---\n").trim();
+}
+
+/** Setup/project dependency failures (e.g. auth.setup) — TCs then show up as skipped with empty results. */
+function collectSetupFailureMessage(
+  suite: { title?: string; specs?: unknown[]; suites?: unknown[] },
+): string {
+  for (const spec of (suite.specs ?? []) as {
+    title?: string;
+    tests?: PlaywrightTest[];
+  }[]) {
+    for (const t of spec.tests ?? []) {
+      if (t.projectName !== "setup") continue;
+      const results = t.results ?? [];
+      const last = results[results.length - 1];
+      if (last?.status !== "failed" && last?.status !== "timedOut" && last?.status !== "interrupted") {
+        continue;
+      }
+      const msg = collectResultErrors(results);
+      if (msg) {
+        const label = spec.title?.trim() || "setup";
+        return `Did not run — setup failed (${label}): ${msg}`;
+      }
+      return `Did not run — setup failed (${spec.title?.trim() || "setup"})`;
+    }
+  }
+  for (const child of (suite.suites ?? []) as {
+    title?: string;
+    specs?: unknown[];
+    suites?: unknown[];
+  }[]) {
+    const nested = collectSetupFailureMessage(child);
+    if (nested) return nested;
+  }
+  return "";
+}
+
+function normalizePlaywrightStatus(
+  resultStatus: string | undefined,
+  testStatus: string | undefined,
+): string {
+  // Prefer the last attempt status; when results[] is empty (blocked by failed setup),
+  // Playwright still sets test.status to "skipped".
+  let status = resultStatus || testStatus || "skipped";
+  if (status === "timedOut" || status === "interrupted" || status === "unexpected") {
+    return "failed";
+  }
+  if (status === "expected" || status === "flaky") return "passed";
+  return status;
+}
+
 function walkSuites(
   suite: { title?: string; file?: string; specs?: unknown[]; suites?: unknown[] },
   out: Map<string, ParsedResult>,
   inheritedFile = "",
+  setupFailure = "",
 ) {
   const suiteFile = suite.file || inheritedFile;
 
   for (const spec of (suite.specs ?? []) as {
     title?: string;
     file?: string;
-    tests?: {
-      projectName?: string;
-      results?: { status?: string; errors?: { message?: string }[] }[];
-    }[];
+    tests?: PlaywrightTest[];
   }[]) {
     const tcId = extractTcId(spec.title ?? "");
     if (!tcId) continue;
@@ -692,16 +763,16 @@ function walkSuites(
     const results = chromiumTest.results ?? [];
     // Final attempt wins (retries must not keep an earlier failure as the sheet status).
     const last = results[results.length - 1];
-    let status = last?.status ?? "skipped";
-    if (status === "timedOut" || status === "interrupted") status = "failed";
+    const status = normalizePlaywrightStatus(last?.status, chromiumTest.status);
 
     let error = "";
     if (status === "failed") {
-      for (const r of results) {
-        for (const e of r.errors ?? []) {
-          if (e.message) error = error ? `${error}\n---\n${e.message}` : e.message;
-        }
-      }
+      error = collectResultErrors(results);
+    } else if (status === "skipped") {
+      // Empty results + skipped almost always means a failed dependency (auth.setup).
+      error =
+        setupFailure ||
+        "Did not run — skipped (usually a failed setup/auth dependency)";
     }
 
     out.set(normalizeTcId(tcId), {
@@ -719,7 +790,7 @@ function walkSuites(
     specs?: unknown[];
     suites?: unknown[];
   }[]) {
-    walkSuites(child, out, suiteFile);
+    walkSuites(child, out, suiteFile, setupFailure);
   }
 }
 
@@ -729,8 +800,12 @@ export function parsePlaywrightReport(reportPath: string): Map<string, ParsedRes
     suites?: { title?: string; file?: string; specs?: unknown[]; suites?: unknown[] }[];
   };
   const byTc = new Map<string, ParsedResult>();
+  let setupFailure = "";
   for (const suite of report.suites ?? []) {
-    walkSuites(suite, byTc);
+    setupFailure = setupFailure || collectSetupFailureMessage(suite);
+  }
+  for (const suite of report.suites ?? []) {
+    walkSuites(suite, byTc, "", setupFailure);
   }
   return byTc;
 }

@@ -30,46 +30,62 @@ function meaningfulLines(raw: string): string[] {
 /**
  * Plain-text failure reason for sheet Comment column and e2e-runner table.
  * Strips ANSI codes and collapses Playwright noise into one readable sentence.
+ * Never falls back to the test title — that looks like a sync bug in the Comment column.
  */
-export function formatErrorForSheet(error: string, title?: string): string {
-  const raw = stripAnsi(error || title || "Unknown failure");
+export function formatErrorForSheet(error: string, _title?: string): string {
+  const raw = stripAnsi(error || "").trim();
+  if (!raw) return "Unknown failure";
 
-  const failLine = raw.match(/FAIL:[^\n]+/);
-  if (failLine) return truncateComment(failLine[0]);
+  const didNotRun = raw.match(/^(Did not run[^\n:]*(?::\s*)?)/i)?.[1]?.trim() ?? "";
+  const body = didNotRun ? raw.slice(didNotRun.length).trim() : raw;
+  const prefix = didNotRun ? `${didNotRun.replace(/:\s*$/, "")}: ` : "";
 
-  const precondition = raw.match(/Precondition not met:[^\n]+/);
-  if (precondition) return truncateComment(`FAIL: ${precondition[0]}`);
+  const failLine = body.match(/FAIL:[^\n]+/) || raw.match(/FAIL:[^\n]+/);
+  if (failLine) return truncateComment(`${prefix}${failLine[0]}`);
 
-  const timeout = raw.match(/TimeoutError:[^\n]+/);
+  const precondition = body.match(/Precondition not met:[^\n]+/);
+  if (precondition) return truncateComment(`${prefix}FAIL: ${precondition[0]}`);
+
+  const timeout = body.match(/TimeoutError:[^\n]+/);
   if (timeout) {
-    const waiting = raw.match(/waiting for ([^\n]+)/)?.[1]?.trim();
+    const waiting = body.match(/waiting for ([^\n]+)/)?.[1]?.trim();
     if (waiting) {
-      return truncateComment(`${timeout[0].trim()} — waiting for ${waiting}`);
+      return truncateComment(`${prefix}${timeout[0].trim()} — waiting for ${waiting}`);
     }
-    return truncateComment(timeout[0].trim());
+    return truncateComment(`${prefix}${timeout[0].trim()}`);
   }
 
-  const locator = raw.match(/Locator:\s*([^\n]+)/)?.[1]?.trim();
-  const expected = raw.match(/Expected(?: pattern)?:\s*([^\n]+)/)?.[1]?.trim();
-  const received = raw.match(/Received(?: string)?:\s*([^\n]+)/)?.[1]?.trim();
+  const expectedPattern = body.match(/Expected pattern:\s*([^\n]+)/)?.[1]?.trim();
+  const expectedValue = body.match(/Expected(?: pattern)?:\s*([^\n]+)/)?.[1]?.trim();
+  const received = body.match(/Received(?: string)?:\s*([^\n]+)/)?.[1]?.trim();
+  const locator = body.match(/Locator:\s*([^\n]+)/)?.[1]?.trim();
 
-  if (locator && expected && received) {
+  if (expectedPattern && received) {
+    return truncateComment(`${prefix}Expected ${expectedPattern}, got ${received}`);
+  }
+
+  if (locator && expectedValue && received) {
     return truncateComment(
-      `Assertion failed on ${locator} — expected ${expected}, got ${received}`,
+      `${prefix}Assertion failed on ${locator} — expected ${expectedValue}, got ${received}`,
     );
   }
 
-  if (locator && expected) {
-    return truncateComment(`Assertion failed on ${locator} — expected ${expected}`);
+  if (locator && expectedValue) {
+    return truncateComment(`${prefix}Assertion failed on ${locator} — expected ${expectedValue}`);
   }
 
-  if (/^Error:\s*expect\(/.test(raw) || raw.includes("expect(")) {
-    const headline = meaningfulLines(raw)[0];
-    if (headline) return truncateComment(headline.replace(/^Error:\s*/, ""));
+  if (expectedValue && received) {
+    return truncateComment(`${prefix}Expected ${expectedValue}, got ${received}`);
   }
 
-  const lines = meaningfulLines(raw);
-  if (lines[0]) return truncateComment(lines[0]);
+  if (/^Error:\s*expect\(/.test(body) || body.includes("expect(")) {
+    const headline = meaningfulLines(body)[0];
+    if (headline) return truncateComment(`${prefix}${headline.replace(/^Error:\s*/, "")}`);
+  }
 
-  return truncateComment(title || "Test failed");
+  const lines = meaningfulLines(body);
+  if (lines[0]) return truncateComment(`${prefix}${lines[0]}`);
+
+  if (didNotRun) return truncateComment(didNotRun.replace(/:\s*$/, ""));
+  return "Unknown failure";
 }
