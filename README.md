@@ -1,6 +1,6 @@
 # @6sense/sheet-e2e
 
-Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google Sheet sync, and CLI.
+Reusable Playwright + Unit Test **runner** for Next.js apps: UI page, API routes, Google Sheet sync, Cursor skills, Sheets MCP launcher, and CLI.
 
 **Start here (plain language):** [docs/HOW-IT-WORKS.md](./docs/HOW-IT-WORKS.md) — process, Dev vs QA, and why this package exists.
 
@@ -9,10 +9,11 @@ Reusable Playwright **e2e runner** for Next.js apps: UI page, API routes, Google
 ## 1. Installation
 
 ```bash
-# Pin a release tag (or use #main for tip)
-npm i -D github:hasib6sense/sheet-e2e#v0.1.9
-# latest tip:
-# npm i -D github:hasib6sense/sheet-e2e#main
+# Latest tip (recommended while iterating)
+npm i -D github:hasib6sense/sheet-e2e#main
+
+# Or pin a release tag when you publish one:
+# npm i -D github:hasib6sense/sheet-e2e#v0.1.57
 
 # Full host wiring (recommended for new or reset projects)
 npx sheet-e2e init
@@ -21,29 +22,31 @@ npx sheet-e2e init
 npx sheet-e2e init --browsers
 # or: npx playwright install
 
-# Verify the host
+# Verify the host (also prints the Runner URL)
 npx sheet-e2e doctor
 ```
 
 **Alternative install URLs**
 
 ```bash
-npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.9
+npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#main
 # SSH:
-# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#v0.1.9
+# npm i -D git+ssh://git@github.com:hasib6sense/sheet-e2e.git#main
 ```
 
 **Init flags**
 
 | Flag | Meaning |
 |------|---------|
-| *(default)* | Full wiring: runner + Playwright + Next/Tailwind + env + gitignore + skill |
-| `--minimal` | Runner shell only (page, APIs, `tab-suites.json`, scripts) |
-| `--force` | Overwrite existing scaffold files (careful on existing apps) |
+| *(default)* | Full wiring: runner + Playwright + Next/Tailwind + env + gitignore + Cursor skills + MCP config + `e2e/README.md` |
+| `--minimal` | Runner shell only (page, APIs, `tab-suites.json`, scripts) — still prints Runner URL |
+| `--force` | Overwrite existing scaffold files (careful on existing apps; also overwrites `.cursor/mcp.json`) |
 | `--no-install` | Do not auto `npm i -D googleapis @playwright/test` |
 | `--browsers` | Also run `npx playwright install` |
 
 **Existing project tip:** If you already have `playwright.config.ts` / `auth.setup.ts`, run `init` **without** `--force` so those files are skipped and only runner routes / `tab-suites` / patches are added.
+
+After `init` / `doctor`, look for the **E2E Runner UI** banner — default URL is `http://localhost:3000/e2e-runner` (from `PLAYWRIGHT_BASE_URL`). Also written to `e2e/README.md`.
 
 ---
 
@@ -60,11 +63,13 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.9
 | Env | Creates/merges `.env` keys from template |
 | Git | Appends `.gitignore` (auth, results, credentials) |
 | Skills | Copies `.cursor/skills/connected-google-sheet/`, `sheet-driven-qa/`, `sheet-playwright-e2e/`, `sheet-unit-test/` |
-| MCP | Writes `.cursor/mcp.json` → package launcher `bin/google-sheets-mcp.mjs` (bundles `google-sheet-mcp`; skipped if exists unless `--force`) |
-| Docs | Writes `e2e/README.md` with Runner URL (`/e2e-runner`) and prints it at end of init |
+| MCP | Writes `.cursor/mcp.json` → `bin/google-sheets-mcp.mjs` (package bundles `google-sheet-mcp`; skipped if file exists unless `--force`) |
+| Docs | Writes `e2e/README.md` with Runner URL and prints access banner at end of init |
 | Gate | Writes `e2e-gate.middleware.ts` (merge into your middleware) |
 
-Peers are also listed in README historically as a manual `npm i -D googleapis @playwright/test` — only needed if you used `--no-install`.
+`google-sheet-mcp` is a **dependency of this package** — you do **not** need a separate `npm i google-sheet-mcp`. Reload Cursor MCP (or restart Cursor) after init so Sheets tools appear.
+
+Peers `googleapis` / `@playwright/test` are still installed into the **host** unless you used `--no-install`.
 
 ---
 
@@ -79,29 +84,31 @@ Do these **after** `init` / `doctor` before using the runner:
    ```
 2. **Credentials** — place the Google service-account JSON at that path (never commit it).
 3. **Share sheet** — invite the service account email as **Editor**.
-4. **Auth setup** — edit `playwright-tests/auth.setup.ts` selectors/URL to match your sign-in page; set `TEST_SIGNIN_EMAIL` / `TEST_SIGNIN_PASSWORD` if needed.
-5. **Tab map** — edit `e2e/tab-suites.json` using **exact Google Sheet tab titles** (e.g. `Apply_Leave`, `Forget_Password`, not `Apply Leave`). Wrong names show empty UI Status / Playwright / Comment (local-only fallback). The runner also fuzzy-matches spaces↔underscores and shows a warning banner.
-6. **Specs** — write Playwright UI tests (non-`API` Category rows). Use the Cursor skill; full sheet→spec codegen is separate.
-7. **Optional gate** — merge `e2e-gate.middleware.ts` into `middleware.ts` so `/e2e-runner` is off in production unless `E2E_RUNNER_ENABLED=1`.
-8. **Run**
+4. **Cursor MCP** — reload MCP / restart Cursor so `.cursor/mcp.json` loads the package Sheets launcher. Agents must pass `spreadsheet: <GOOGLE_SPREADSHEET_ID>` (see `connected-google-sheet` skill).
+5. **Auth setup** — edit `playwright-tests/auth.setup.ts` selectors/URL to match your sign-in page; set `TEST_SIGNIN_EMAIL` / `TEST_SIGNIN_PASSWORD` if needed.
+6. **Tab map** — edit `e2e/tab-suites.json` using **exact Google Sheet tab titles** (e.g. `Apply_Leave`, `Forget_Password`). Map `specs` (Playwright) and optional `unitSpecs` (Jest / Category=`UI`). Wrong tab names show empty Status / Comment (local-only fallback). The runner also fuzzy-matches spaces↔underscores and shows a warning banner.
+7. **Specs** — write Playwright (`Category=Playwright`) and/or Jest unit tests (`Category=UI`). Use the Cursor skills; full sheet→spec codegen is separate.
+8. **Optional gate** — merge `e2e-gate.middleware.ts` into `middleware.ts` so `/e2e-runner` is off in production unless `E2E_RUNNER_ENABLED=1`.
+9. **Run**
    ```bash
    npm run dev          # app on baseURL (default localhost:3000)
    # open the Runner URL printed by init (default http://localhost:3000/e2e-runner)
    # see e2e/README.md
    npm run test:e2e     # or test:e2e:all / test:e2e:tab "Tab Name"
-   npx sheet-e2e doctor # also prints the Runner URL
+   npx sheet-e2e doctor # also prints the Runner URL + MCP checks
    ```
 
 ### Checklist
 
 ```
-- [ ] npm i -D …#v0.1.9 && npx sheet-e2e init && npx sheet-e2e doctor
+- [ ] npm i -D github:hasib6sense/sheet-e2e#main && npx sheet-e2e init && npx sheet-e2e doctor
 - [ ] GOOGLE_SPREADSHEET_ID + credentials file
 - [ ] Sheet shared with service account (Editor)
+- [ ] Cursor MCP reloaded (Sheets tools via package launcher)
 - [ ] auth.setup.ts matches your login UI
-- [ ] e2e/tab-suites.json mapped
-- [ ] At least one non-API Playwright suite
-- [ ] /e2e-runner opens (dev)
+- [ ] e2e/tab-suites.json mapped (specs + unitSpecs as needed)
+- [ ] At least one Playwright and/or Unit Test suite
+- [ ] Runner URL opens (dev) — see e2e/README.md
 ```
 
 ---
@@ -123,15 +130,23 @@ npx sheet-e2e uninstall -y --purge
 | `--purge` | Also delete `e2e/` and `playwright-tests/example.spec.ts` |
 | `--keep-dep` | Strip files/config only; leave `@6sense/sheet-e2e` in package.json |
 
-**Removes:** `/e2e-runner`, `/api/e2e/*`, `e2e-gate.middleware.ts`, `e2e/tab-suites.json`, Next `transpilePackages` entry, Tailwind `@source` + `content` entry, `test:e2e*` scripts that call `sheet-e2e`, copied Cursor skill, npm package.
+**Removes:**
 
-**Keeps:** `playwright.config.ts`, real `playwright-tests/*`, `auth.setup.ts`, `.env` secrets (delete those yourself if desired).
+- `/e2e-runner`, `/api/e2e/*`, `e2e-gate.middleware.ts`
+- `e2e/tab-suites.json`, `e2e/env.example`, `e2e/README.md` (whole `e2e/` with `--purge`)
+- Next `transpilePackages` entry, Tailwind `@source` + `content` entry
+- `test:e2e*` scripts that call `sheet-e2e`
+- Copied Cursor skills (`connected-google-sheet`, `sheet-driven-qa`, `sheet-playwright-e2e`, `sheet-unit-test`)
+- Sheets MCP entry from `.cursor/mcp.json` (deletes the file if it only contained `google-sheets`)
+- npm package `@6sense/sheet-e2e` (unless `--keep-dep`)
+
+**Keeps:** `playwright.config.ts`, real `playwright-tests/*`, `auth.setup.ts`, Jest unit tests, `.env` secrets (delete those yourself if desired), other MCP servers in `.cursor/mcp.json` if present.
 
 If the CLI is already gone:
 
 ```bash
 npm uninstall @6sense/sheet-e2e
-# then manually delete e2e-runner / api/e2e and reverse Next/Tailwind patches
+# then manually delete e2e-runner / api/e2e, .cursor MCP/skills, and reverse Next/Tailwind patches
 ```
 
 ---
@@ -140,8 +155,11 @@ npm uninstall @6sense/sheet-e2e
 
 | Path | Role |
 |------|------|
-| `e2e/tab-suites.json` | Sheet tab → specs / project / workers |
+| `e2e/tab-suites.json` | Sheet tab → `specs` / `unitSpecs` / project / workers |
 | `e2e/env.example` | Env template |
+| `e2e/README.md` | Runner URL + quick open instructions |
+| `.cursor/mcp.json` | Cursor Google Sheets MCP → package launcher |
+| `.cursor/skills/*` | Sheet-driven Cursor skills (copied from package) |
 | `playwright.config.ts` | Projects + JSON reporter for sheet sync |
 | `playwright-tests/auth.setup.ts` | Logged-in `storageState` |
 | `app` or `src/app` `/e2e-runner/page.tsx` | Re-export of `E2eRunnerPage` |
@@ -158,11 +176,13 @@ TEST_SIGNIN_EMAIL=...
 TEST_SIGNIN_PASSWORD=...
 # Optional
 E2E_RESULTS_FILE=playwright-results.json
+E2E_UNIT_RESULTS_FILE=jest-results.json
 E2E_SKIP_TABS=Summery
 E2E_TAB_SUITES_PATH=e2e/tab-suites.json
 E2E_NO_SHEET_SYNC=1
 E2E_RUNNER_ENABLED=1
 PLAYWRIGHT_BASE_URL=http://localhost:3000
+# → Runner UI: $PLAYWRIGHT_BASE_URL/e2e-runner
 ```
 
 ## Sheet contract
@@ -170,12 +190,12 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000
 Required columns (aliases supported):
 
 - Test Case ID
-- Category (`API` rows skipped; `UI` = unit-test engine; `Playwright` = browser E2E)
+- Category (`API` rows skipped; `UI` = Unit Test / Jest engine; `Playwright` or blank = browser E2E)
 - UI Status → Passed / Failed (Unit Test engine; styled badge)
 - Playwright → Passed / Failed (Playwright engine; styled badge)
 - Comment → failure reason for the active engine (cleared on pass)
 
-## Cursor skills
+## Cursor skills & Sheets MCP
 
 Copied on `sheet-e2e init`:
 
@@ -184,7 +204,13 @@ Copied on `sheet-e2e init`:
 - `skills/sheet-playwright-e2e/` — Category=`Playwright` → browser E2E
 - `skills/sheet-unit-test/` — Category=`UI` → Jest unit/component tests
 
-Optional personal copies under `~/.cursor/skills/`. Sheets MCP is provided by `@6sense/sheet-e2e` (`bin/google-sheets-mcp.mjs` + `google-sheet-mcp` dependency); prefer project `.cursor/mcp.json` from `init` over a home-folder MCP install.
+Sheets MCP is provided by this package:
+
+- Dependency: `google-sheet-mcp`
+- Launcher: `bin/google-sheets-mcp.mjs` (bin name `sheet-e2e-google-sheets-mcp`)
+- Host config: `.cursor/mcp.json` (written by `init`)
+
+Prefer the project MCP config over a home-folder `~/.cursor/google-sheet-mcp` install.
 
 ## CLI
 
@@ -204,7 +230,7 @@ sheet-e2e sync --tabs "Weekend" --engine unit-test
 
 ```bash
 # bump version in package.json, then:
-git tag v0.1.9
+git tag v0.1.57
 git push origin main --tags
 ```
 

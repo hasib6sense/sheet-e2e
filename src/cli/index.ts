@@ -48,7 +48,8 @@ Usage:
       -y / --yes    skip confirmation
       --purge       also remove e2e/ folder and example.spec.ts
       --keep-dep    leave @6sense/sheet-e2e in package.json (files/config only)
-      Keeps Playwright specs, auth.setup, playwright.config, and .env secrets.
+      Removes: runner routes, tab-suites, skills, Sheets MCP entry, scripts, patches.
+      Keeps Playwright/Jest specs, auth.setup, playwright.config, and .env secrets.
 
   sheet-e2e doctor                      Verify host is ready for the runner
   sheet-e2e run <TabName> [--engine playwright|unit-test]

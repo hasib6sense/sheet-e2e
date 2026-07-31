@@ -161,6 +161,33 @@ function npmUninstallPackage(cwd: string, skipNpm: boolean) {
   }
 }
 
+function stripGoogleSheetsMcp(cwd: string) {
+  const mcpPath = join(cwd, ".cursor/mcp.json");
+  if (!existsSync(mcpPath)) return;
+  try {
+    const raw = JSON.parse(readFileSync(mcpPath, "utf8")) as {
+      mcpServers?: Record<string, unknown>;
+    };
+    const servers = raw.mcpServers ?? {};
+    if (!servers["google-sheets"]) {
+      console.log("  skip .cursor/mcp.json (no google-sheets server)");
+      return;
+    }
+    delete servers["google-sheets"];
+    const remaining = Object.keys(servers);
+    if (remaining.length === 0) {
+      removeFile(cwd, mcpPath);
+      removeDirIfEmpty(cwd, join(cwd, ".cursor"));
+      return;
+    }
+    raw.mcpServers = servers;
+    writeFileSync(mcpPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+    console.log(`  updated: .cursor/mcp.json (removed google-sheets; kept ${remaining.join(", ")})`);
+  } catch {
+    console.log("  warn: could not update .cursor/mcp.json — remove google-sheets manually if needed");
+  }
+}
+
 /**
  * Reverse `sheet-e2e init` host wiring.
  *
@@ -216,15 +243,17 @@ export async function runUninstall(args: string[]) {
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-driven-qa"));
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-playwright-e2e"));
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-unit-test"));
+  stripGoogleSheetsMcp(cwd);
 
   console.log("\nDependency");
   npmUninstallPackage(cwd, skipNpm);
 
   console.log(`
 Done. Left in place (on purpose):
-  - playwright.config.ts / playwright-tests / auth.setup.ts
+  - playwright.config.ts / playwright-tests / auth.setup.ts / Jest unit tests
   - .env sheet credentials (remove manually if desired)
   - .gitignore sheet-e2e entries (harmless)
+  - other Cursor MCP servers in .cursor/mcp.json (if any)
 
 Re-install later:
   npm i -D github:hasib6sense/sheet-e2e#main

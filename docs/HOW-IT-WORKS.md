@@ -42,38 +42,35 @@ Each feature (Sign In, Projects, Apply Leave, …) has a tab with columns like:
 - Test Case ID  
 - Test Case (description)  
 - Steps / data / expected result  
-- Category (UI vs API)  
+- Category (`Playwright` = browser E2E, `UI` = Jest unit/component, `API` = not in this Runner)  
 - UI Status / Playwright / Comment  
-
-**UI cases** are for Playwright. **API cases** are not run in the Runner.
 
 ### 2. Developer connects the sheet in Cursor
 
-The developer links **Google Sheets MCP** to the spreadsheet for that project.  
-That lets Cursor read the sheet while generating or updating tests.
+`sheet-e2e init` writes **`.cursor/mcp.json`** so Cursor uses the package’s Google Sheets MCP launcher (`google-sheet-mcp` is bundled — no separate install).  
 
-### 3. Developer generates Playwright tests
+Set `GOOGLE_SPREADSHEET_ID` + credentials in `.env`, then **reload Cursor MCP**. Agents should always pass that spreadsheet ID (see the `connected-google-sheet` skill).
 
-From the sheet rows (non-API only), the developer creates Playwright scripts that:
+### 3. Developer generates tests from the sheet
 
-- Follow the sheet’s test IDs and titles  
-- Use the sheet’s test data and expected results  
-- Assert what the user actually sees in the browser  
+From the sheet rows:
 
-These scripts live in the app (for example under `playwright-tests/`).
+- **Category=`Playwright`** (or blank/legacy) → Playwright specs under `playwright-tests/`  
+- **Category=`UI`** → Jest unit/component tests (`unitSpecs` in `tab-suites.json`)  
+- **Category=`API`** → omit from this Runner  
+
+Use the copied Cursor skills (`sheet-playwright-e2e`, `sheet-unit-test`, `sheet-driven-qa`).
 
 ### 4. QA uses the Runner page
 
-The app includes a page (usually `/e2e-runner`) where QA can:
+The app includes a page at **`/e2e-runner`** (default **`http://localhost:3000/e2e-runner`** — also printed by `init` / `doctor` and documented in `e2e/README.md`) where QA can:
 
-- Choose a **module** (sheet tab / feature)  
+- Choose engine (**Playwright** or **Unit Test**) and **module(s)** (including Select all)  
 - See which cases are implemented  
 - See **UI Status**, **Playwright**, and **Comment** from the sheet  
-- Run one case, several cases, or a whole module  
+- Run one case, several cases, or whole module(s)  
 - Watch the run log  
 - Optionally sync results back to the sheet  
-
-That is the day-to-day QA experience.
 
 ---
 
@@ -124,39 +121,45 @@ npx sheet-e2e init
 npx sheet-e2e doctor
 ```
 
-`init` wires the Runner page, APIs, scripts, and common config.  
+`init` wires the Runner page, APIs, scripts, Cursor skills, Sheets MCP config, `e2e/README.md`, and common config.  
+It also **prints the Runner URL** (default `http://localhost:3000/e2e-runner`).
+
 You still need to:
 
 1. Put the spreadsheet ID and Google credentials in `.env`  
 2. Share the spreadsheet with the service account  
-3. Map sheet tabs → Playwright files in `e2e/tab-suites.json`  
+3. Reload Cursor MCP so Sheets tools work  
+4. Map sheet tabs → `specs` / `unitSpecs` in `e2e/tab-suites.json`  
    (use the **exact** tab names from the sheet, e.g. `Apply_Leave`)  
-4. Adjust login setup if the app needs signed-in tests  
-5. Write or update Playwright specs from the sheet  
+5. Adjust login setup if the app needs signed-in Playwright tests  
+6. Write or update Playwright and/or Unit Test specs from the sheet  
 
 ### Remove the Runner from a project
 
 ```bash
 npx sheet-e2e uninstall -y
+
+# Also remove e2e/ leftovers + example.spec.ts
+npx sheet-e2e uninstall -y --purge
 ```
 
-This removes Runner files and config patches. Playwright specs can stay.
+This removes Runner files, config patches, copied skills, and the Sheets MCP entry from `.cursor/mcp.json`. Playwright / Jest specs can stay. See the [README uninstall section](../README.md#4-uninstall-remove-from-a-project).
 
 ### Day-to-day for developers
 
-- Keep Playwright tests in sync with the sheet  
+- Keep Playwright / Unit tests in sync with the sheet  
 - Keep `tab-suites.json` accurate  
 - Fix failures QA reports from the Runner  
 - Improve selectors / stability when tests flake  
 
-More detail (install flags, env vars): see the package [README](../README.md).
+More detail (install flags, env vars, MCP): see the package [README](../README.md).
 
 ---
 
 ## How to use the Runner (QA)
 
-1. Ask the developer for the Runner URL (often `http://localhost:3000/e2e-runner` in local/dev).  
-2. Select the **module** you care about (e.g. Sign In).  
+1. Ask the developer for the Runner URL (printed by `init` / `doctor`; often `http://localhost:3000/e2e-runner`, also in `e2e/README.md`).  
+2. Select the **engine** (Playwright or Unit Test) and **module(s)** you care about.  
 3. Check the list: case titles and sheet statuses should appear.  
 4. Run one test, selected tests, or the module.  
 5. Read the log if something fails.  
@@ -170,18 +173,18 @@ If Status shows only “—” and titles look like `TC_001` instead of a real s
 
 **Developer – first time on a project**
 
-- [ ] Sheet exists with UI test cases  
-- [ ] Google Sheets MCP connected in Cursor  
-- [ ] Package installed + `init` + `doctor`  
+- [ ] Sheet exists with Playwright and/or UI (unit) test cases  
+- [ ] Package installed + `init` + `doctor` (Runner URL printed)  
 - [ ] Credentials and spreadsheet ID set  
-- [ ] Tabs mapped in `tab-suites.json`  
-- [ ] Playwright specs written for UI cases  
+- [ ] Cursor MCP reloaded (package Sheets launcher)  
+- [ ] Tabs mapped in `tab-suites.json` (`specs` / `unitSpecs`)  
+- [ ] Specs written for the relevant Category rows  
 - [ ] Runner page opens and shows statuses  
 
 **QA – each cycle**
 
-- [ ] Open Runner  
-- [ ] Pick module  
+- [ ] Open Runner (URL from developer / `e2e/README.md`)  
+- [ ] Pick engine + module  
 - [ ] Run tests  
 - [ ] Review pass/fail and comments  
 - [ ] Report gaps to developers  
@@ -193,8 +196,10 @@ If Status shows only “—” and titles look like `TC_001` instead of a real s
 | Piece | Purpose |
 |-------|---------|
 | **Google Sheet** | Source of truth for test cases and statuses |
-| **Playwright** | Automated browser tests (owned by developers) |
-| **Runner page** | Simple UI so QA can run tests by module |
-| **`@6sense/sheet-e2e` package** | Same Runner, easy to add to any Next.js project |
+| **Playwright** | Automated browser tests (Category=`Playwright`) |
+| **Unit Test (Jest)** | Component/unit tests (Category=`UI`) |
+| **Runner page** | Simple UI so QA can run tests by module (`/e2e-runner`) |
+| **Sheets MCP** | Cursor agents read/write the same sheet (`init` wires it) |
+| **`@6sense/sheet-e2e` package** | Same Runner + sync + CLI, easy to add to any Next.js project |
 
 We started with a Runner in one app, then packaged it so every project can give QA the same experience without rebuilding the engine each time.
