@@ -61,6 +61,45 @@ function formatCmdForDisplay(args: string[]): string {
   return out.join(" ");
 }
 
+/** Jest prints the full --testNamePattern in its summary — redact that for the UI/log. */
+function sanitizeRunnerChunk(text: string): string {
+  return text
+    .replace(
+      /with tests matching ["']([^"']{40,})["']/gi,
+      (_m, pattern: string) => {
+        const count = Math.max(1, String(pattern).split("|").length);
+        return `with tests matching <${count} cases>`;
+      },
+    )
+    .replace(
+      /Ran all test suites matching ([^\n]{120,}?)( with tests matching|\.|$)/gi,
+      (_m, files: string, tail: string) => {
+        const count = Math.max(1, String(files).split("|").filter(Boolean).length);
+        return `Ran all test suites matching <${count} files>${tail || ""}`;
+      },
+    );
+}
+
+/** Buffer partial lines so redaction still works across stream chunks. */
+function createOutputSanitizer(onChunk: (text: string) => void) {
+  let pending = "";
+  return {
+    push(chunk: string) {
+      pending += chunk;
+      const parts = pending.split("\n");
+      pending = parts.pop() ?? "";
+      for (const line of parts) {
+        onChunk(`${sanitizeRunnerChunk(line)}\n`);
+      }
+    },
+    flush() {
+      if (!pending) return;
+      onChunk(sanitizeRunnerChunk(pending));
+      pending = "";
+    },
+  };
+}
+
 function teeOutput(text: string, onOutput?: (chunk: string) => void) {
   onOutput?.(text);
   process.stdout.write(text);
@@ -213,6 +252,7 @@ function runJest(
     const finish = (exitCode: number) => {
       if (settled) return;
       settled = true;
+      sanitizer.flush();
       opts.signal?.removeEventListener("abort", onAbort);
       resolvePromise({ exitCode, output });
     };
@@ -237,15 +277,16 @@ function runJest(
 
     opts.signal?.addEventListener("abort", onAbort);
 
-    child.stdout?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString();
+    const sanitizer = createOutputSanitizer((text) => {
       output += text;
       teeOutput(text, opts.onOutput);
     });
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      sanitizer.push(chunk.toString());
+    });
     child.stderr?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString();
-      output += text;
-      teeOutput(text, opts.onOutput);
+      sanitizer.push(chunk.toString());
     });
     child.on("error", (err) => {
       const text = `\nFailed to start Jest: ${err.message}\n`;
