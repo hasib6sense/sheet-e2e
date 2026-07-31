@@ -3,7 +3,7 @@
     "google-sheets": {
       "command": "node",
       "args": [
-        "${workspaceFolder}/node_modules/google-sheet-mcp/src/server/server.mjs"
+        "${workspaceFolder}/node_modules/@6sense/sheet-e2e/bin/google-sheets-mcp.mjs"
       ],
       "envFile": "${workspaceFolder}/.env",
       "env": {

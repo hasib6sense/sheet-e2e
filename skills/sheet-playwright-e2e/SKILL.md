@@ -37,7 +37,7 @@ Do **not** use `--force` if the host already has `playwright.config.ts` / `auth.
 
 1. Set `GOOGLE_SPREADSHEET_ID` + `GOOGLE_APPLICATION_CREDENTIALS` in `.env`
 2. Place service-account JSON at `credentials/credentials.json`; share the sheet as **Editor**
-3. Enable Sheets MCP via project `.cursor/mcp.json` (runs `google-sheet-mcp` from `node_modules` — see `connected-google-sheet` skill)
+3. Sheets MCP: `init` writes `.cursor/mcp.json` via `@6sense/sheet-e2e` launcher (see `connected-google-sheet` skill); reload Cursor MCP
 4. Tweak `playwright-tests/auth.setup.ts` for your sign-in UI
 5. Map tabs in `e2e/tab-suites.json` (`chromium` vs `chromium-unauth`)
 6. Write non-API Playwright specs (this skill)

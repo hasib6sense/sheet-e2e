@@ -404,7 +404,7 @@ export async function runInit(args: string[]) {
   copySkills(cwd, force);
   copyTemplate(cwd, "mcp.google-sheets.json", join(cwd, ".cursor/mcp.json"), force);
   console.log(
-    "  tip: npm i -D google-sheet-mcp (Sheets MCP from node_modules; see connected-google-sheet skill)",
+    "  tip: reload Cursor MCP after init — Sheets MCP is started via @6sense/sheet-e2e/bin/google-sheets-mcp.mjs",
   );
 
   copyTemplate(

@@ -75,6 +75,52 @@ export async function runDoctor() {
   }
   checks.push(check(nextOk, "next.config transpilePackages includes @6sense/sheet-e2e"));
 
+  const mcpLauncher = join(cwd, "node_modules/@6sense/sheet-e2e/bin/google-sheets-mcp.mjs");
+  const mcpJson = join(cwd, ".cursor/mcp.json");
+  checks.push(
+    check(existsSync(mcpLauncher), "Sheets MCP launcher", mcpLauncher),
+  );
+  if (existsSync(mcpJson)) {
+    const mcpText = readFileSync(mcpJson, "utf8");
+    checks.push(
+      check(
+        mcpText.includes("google-sheets-mcp.mjs") || mcpText.includes("google-sheet-mcp"),
+        ".cursor/mcp.json Sheets MCP",
+        mcpText.includes("google-sheets-mcp.mjs")
+          ? "package launcher"
+          : "custom / legacy path",
+      ),
+    );
+  } else {
+    checks.push(
+      check(false, ".cursor/mcp.json Sheets MCP", "missing — run: npx sheet-e2e init"),
+    );
+  }
+
+  try {
+    // Resolve from the installed package so nested or hoisted deps both pass.
+    const { createRequire } = await import("node:module");
+    const { pathToFileURL } = await import("node:url");
+    const req = createRequire(pathToFileURL(join(cwd, "package.json")).href);
+    let resolved: string | null = null;
+    try {
+      resolved = req.resolve("google-sheet-mcp/package.json");
+    } catch {
+      try {
+        resolved = req.resolve("@6sense/sheet-e2e/package.json");
+        const nestedReq = createRequire(resolved);
+        resolved = nestedReq.resolve("google-sheet-mcp/package.json");
+      } catch {
+        resolved = null;
+      }
+    }
+    checks.push(
+      check(Boolean(resolved), "google-sheet-mcp available", resolved ?? "not found under host or @6sense/sheet-e2e"),
+    );
+  } catch (e) {
+    checks.push(check(false, "google-sheet-mcp available", (e as Error).message));
+  }
+
   clearConfigCache();
   try {
     loadConfig();

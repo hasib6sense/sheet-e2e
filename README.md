@@ -60,7 +60,7 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#v0.1.9
 | Env | Creates/merges `.env` keys from template |
 | Git | Appends `.gitignore` (auth, results, credentials) |
 | Skills | Copies `.cursor/skills/connected-google-sheet/`, `sheet-driven-qa/`, `sheet-playwright-e2e/`, `sheet-unit-test/` |
-| MCP | Writes `.cursor/mcp.json` for project-local `google-sheet-mcp` (skipped if exists unless `--force`) |
+| MCP | Writes `.cursor/mcp.json` → package launcher `bin/google-sheets-mcp.mjs` (bundles `google-sheet-mcp`; skipped if exists unless `--force`) |
 | Docs | Writes `e2e/README.md` with Runner URL (`/e2e-runner`) and prints it at end of init |
 | Gate | Writes `e2e-gate.middleware.ts` (merge into your middleware) |
 
@@ -184,7 +184,7 @@ Copied on `sheet-e2e init`:
 - `skills/sheet-playwright-e2e/` — Category=`Playwright` → browser E2E
 - `skills/sheet-unit-test/` — Category=`UI` → Jest unit/component tests
 
-Optional personal copies under `~/.cursor/skills/`. Prefer project `.cursor/mcp.json` + `google-sheet-mcp` in the host `node_modules` over a home-folder MCP install.
+Optional personal copies under `~/.cursor/skills/`. Sheets MCP is provided by `@6sense/sheet-e2e` (`bin/google-sheets-mcp.mjs` + `google-sheet-mcp` dependency); prefer project `.cursor/mcp.json` from `init` over a home-folder MCP install.
 
 ## CLI
 

@@ -17,7 +17,7 @@ Do **not** use:
 
 - A previously connected Google Sheets MCP default spreadsheet
 - Hardcoded IDs from skills, plans, old chats, or docs
-- `~/.cursor/google-sheet-mcp` when the host runs Sheets MCP from project `node_modules`
+- `~/.cursor/google-sheet-mcp` when the host runs Sheets MCP via `@6sense/sheet-e2e`
 - Memory of a sheet ID from an earlier conversation unless it still matches `.env`
 
 ## Resolve the connected sheet (do this first)
@@ -34,17 +34,17 @@ spreadsheet: <GOOGLE_SPREADSHEET_ID from .env>
 
 Example: `sheets_read_range` with `spreadsheet` + `range` like `Projects!A1:N200`.
 
-## Project MCP (local package)
+## Project MCP (shipped with `@6sense/sheet-e2e`)
 
-Prefer a host **`.cursor/mcp.json`** that runs Google Sheets MCP from the project:
+`sheet-e2e init` writes **`.cursor/mcp.json`** that starts Sheets MCP through the package launcher:
 
 | Setting | Value |
 |---------|--------|
-| Server | `${workspaceFolder}/node_modules/google-sheet-mcp/src/server/server.mjs` |
+| Server | `${workspaceFolder}/node_modules/@6sense/sheet-e2e/bin/google-sheets-mcp.mjs` |
 | Sheet ID | from `${workspaceFolder}/.env` → `GOOGLE_SPREADSHEET_ID` (`envFile`) |
 | Credentials | `${workspaceFolder}/credentials/credentials.json` |
 
-Requirements: `npm i -D google-sheet-mcp` (or equivalent), `.env` + `credentials/credentials.json` present. Works on Windows and Mac — no home-folder MCP install required for the host project.
+`google-sheet-mcp` is a dependency of `@6sense/sheet-e2e` — no separate host install. Requirements: `.env` + `credentials/credentials.json`. Works on Windows and Mac.
 
 Still pass `spreadsheet` explicitly on tool calls when possible.
 
@@ -58,6 +58,6 @@ The e2e-runner and `@6sense/sheet-e2e` use `.env` → `GOOGLE_SPREADSHEET_ID`. M
 
 - [ ] Read `.env` → `GOOGLE_SPREADSHEET_ID` before sheet access
 - [ ] Pass `spreadsheet: <that id>` on every Sheets MCP tool call
-- [ ] Prefer project `.cursor/mcp.json` (local `node_modules`) over `~/.cursor/google-sheet-mcp`
+- [ ] Prefer project `.cursor/mcp.json` (package launcher) over `~/.cursor/google-sheet-mcp`
 - [ ] Do not fall back to skill/doc hardcoded spreadsheet IDs
 - [ ] If `.env` is missing the ID, ask the user — do not invent or reuse an old ID

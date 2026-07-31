@@ -1,6 +1,6 @@
 {
   "name": "@6sense/sheet-e2e",
-  "version": "0.1.56",
+  "version": "0.1.57",
   "description": "Playwright + Unit Test runner UI, APIs, sheet sync, and CLI for Next.js apps",
   "license": "UNLICENSED",
   "type": "module",
@@ -13,7 +13,8 @@
   },
   "homepage": "https://github.com/hasib6sense/sheet-e2e#readme",
   "bin": {
-    "sheet-e2e": "./bin/sheet-e2e.mjs"
+    "sheet-e2e": "./bin/sheet-e2e.mjs",
+    "sheet-e2e-google-sheets-mcp": "./bin/google-sheets-mcp.mjs"
   },
   "exports": {
     ".": {
@@ -60,6 +61,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
+    "google-sheet-mcp": "^2.1.2",
     "tsx": "^4.20.3"
   },
   "devDependencies": {
