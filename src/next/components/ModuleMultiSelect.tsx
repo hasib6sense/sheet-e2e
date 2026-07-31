@@ -51,6 +51,8 @@ export function ModuleMultiSelect({
     onOpenChange?.(next);
   };
 
+  const allSelected = options.length > 0 && options.every((o) => value.includes(o.value));
+
   const toggle = (moduleValue: string) => {
     if (value.includes(moduleValue)) {
       const next = value.filter((v) => v !== moduleValue);
@@ -61,12 +63,24 @@ export function ModuleMultiSelect({
     }
   };
 
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      // Keep at least one module selected (first option).
+      const first = options[0]?.value;
+      onChange(first ? [first] : []);
+      return;
+    }
+    onChange(options.map((o) => o.value));
+  };
+
   const triggerLabel =
     value.length === 0
       ? "Select modules…"
-      : value.length === 1
-        ? `${value[0]} (${options.find((o) => o.value === value[0])?.count ?? 0} tests)`
-        : `${value.length} modules selected`;
+      : value.length === options.length && options.length > 1
+        ? `All modules (${options.length})`
+        : value.length === 1
+          ? `${value[0]} (${options.find((o) => o.value === value[0])?.count ?? 0} tests)`
+          : `${value.length} modules selected`;
 
   return (
     <div className="sheet-e2e-select">
@@ -96,6 +110,28 @@ export function ModuleMultiSelect({
               className="sheet-e2e-select__menu-scroll"
               onWheel={(e) => e.stopPropagation()}
             >
+              {options.length > 1 && (
+                <>
+                  <label
+                    className="sheet-e2e-select__option sheet-e2e-select__option--select-all"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSelectAll();
+                    }}
+                  >
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all modules"
+                    />
+                    <span className="sheet-e2e-select__option-label">
+                      {allSelected ? "Deselect all" : "Select all"}
+                    </span>
+                    <span className="sheet-e2e-select__count">{options.length}</span>
+                  </label>
+                  <div className="sheet-e2e-select__divider" role="separator" />
+                </>
+              )}
               {options.map((opt) => (
                 <label
                   key={opt.value}

@@ -359,6 +359,15 @@
   background: #fafafa;
 }
 
+.sheet-e2e-select__option--select-all {
+  font-weight: 600;
+}
+
+.sheet-e2e-select__divider {
+  margin: 0.25rem 0.5rem;
+  border-top: 1px solid #e5e5e5;
+}
+
 .sheet-e2e-select__option--active {
   background: #f5f5f5;
   font-weight: 500;

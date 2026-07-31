@@ -1,6 +1,6 @@
 {
   "name": "@6sense/sheet-e2e",
-  "version": "0.1.55",
+  "version": "0.1.56",
   "description": "Playwright + Unit Test runner UI, APIs, sheet sync, and CLI for Next.js apps",
   "license": "UNLICENSED",
   "type": "module",
