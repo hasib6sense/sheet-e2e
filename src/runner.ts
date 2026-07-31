@@ -3,7 +3,11 @@ import { existsSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getResultsFile, getTabSuite, getTabSuites, getUnitResultsFile } from "./config";
-import { syncSheetsForTabs } from "./google-sheets";
+import {
+  categorizeEngine,
+  fetchImplementedTestCasesWithMeta,
+  syncSheetsForTabs,
+} from "./google-sheets";
 import type { E2eRunRequest, E2eRunResult, E2eTabSuite } from "./types";
 
 const STREAM_LIST_REPORTER = join(
@@ -347,7 +351,28 @@ export async function runE2eTests(
 
   if (request.mode === "tabs") {
     if (!request.tabs.length) throw new Error("No tabs selected.");
-    batches = batchesForTabs(request.tabs, engine);
+    if (engine === "unit-test") {
+      // Run only sheet Category=UI cases for the selected tabs (match Modules count).
+      const { cases } = await fetchImplementedTestCasesWithMeta(request.tabs);
+      const tabSet = new Set(request.tabs);
+      const uiCases = cases.filter(
+        (c) =>
+          tabSet.has(c.tab) &&
+          categorizeEngine(c.category) === "unit-test" &&
+          (c.runnable || c.implemented || c.hasSpec),
+      );
+      if (!uiCases.length) {
+        throw new Error(
+          `No Category=UI unit tests mapped for tabs: ${request.tabs.join(", ")}`,
+        );
+      }
+      batches = batchesForCases(
+        uiCases.map((c) => ({ tab: c.tab, testCaseId: c.testCaseId })),
+        engine,
+      );
+    } else {
+      batches = batchesForTabs(request.tabs, engine);
+    }
   } else {
     if (!request.cases.length) throw new Error("No test cases selected.");
     batches = batchesForCases(request.cases, engine);
