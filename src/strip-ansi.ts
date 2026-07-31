@@ -81,10 +81,12 @@ export function classifyLogLine(line: string): LogLineKind {
   if (/^[…⋯○]\s+\d+\b/.test(t) || /^\.\.\.\s+\d+\b/.test(t)) return "running";
   if (/^PASS\s+\S/.test(t)) return "suite-pass";
   if (/^FAIL\s+\S/.test(t)) return "suite-fail";
-  if (/^[✓✔](\s|$)/.test(t) || /^ok\s+\d+\b/i.test(t)) return "pass";
-  if (/^[✘✕](\s|$)/.test(t) || /^\s*x\s+\d+\b/i.test(line)) return "fail";
-  if (/✓/.test(line) && !/\|/.test(line)) return "pass";
-  if (/[✘✕]/.test(line) && !/\|/.test(line)) return "fail";
+  // Include Windows Jest marks: √ (pass) and × (fail) — without these, lines
+  // fall through to "group" and the runner UI uppercases + greys them.
+  if (/^[✓✔√](\s|$)/.test(t) || /^ok\s+\d+\b/i.test(t)) return "pass";
+  if (/^[✘✕×](\s|$)/.test(t) || /^\s*x\s+\d+\b/i.test(line)) return "fail";
+  if (/[✓✔√]/.test(line) && !/\|/.test(line)) return "pass";
+  if (/[✘✕×]/.test(line) && !/\|/.test(line)) return "fail";
   if (isJestSummaryLine(t)) return classifyJestSummaryLine(t);
   if (/^Time:/i.test(t) || /^Ran all test suites/i.test(t) || /^Test results written to/i.test(t)) return "muted";
   if (/\d+\s+passed\b/i.test(t) && !/\bfailed\b/i.test(t)) return "summary-pass";
@@ -106,7 +108,7 @@ export function classifyLogLine(line: string): LogLineKind {
   // Skip console.log dumps — they are indented too but must not get uppercase group styling.
   if (
     /^\s{2,}\S/.test(line) &&
-    !/^[✓✔✘✕○◌]/.test(t) &&
+    !/^[✓✔√✘✕×○◌]/.test(t) &&
     !/\|/.test(t) &&
     !isConsoleOrDumpLine(line)
   ) {
@@ -145,7 +147,7 @@ export const LOG_LINE_CLASS: Record<LogLineKind, string> = {
 /** Parse Jest/Playwright test line into title + optional duration. */
 export function parseTestLine(line: string): { title: string; duration?: string } {
   const stripped = line
-    .replace(/^\s*[…⋯○✓✔✘✕x-]\s*/i, "")
+    .replace(/^\s*[…⋯○✓✔√✘✕×x-]\s*/i, "")
     .replace(/^skipped\s+/i, "")
     .trim();
   const m = stripped.match(/^(TC[-_]?\d+:\s*.+?)(?:\s*\((\d+\s*ms)\))?$/i);
@@ -162,6 +164,6 @@ export function formatSuiteLine(line: string): string {
 
 /** Extract Playwright list/stream test index from a line, if present. */
 export function testLineIndex(line: string): string | null {
-  const m = line.match(/^\s*(?:[…⋯○✓✔✘✕x-]|ok)\s+(\d+)\b/i);
+  const m = line.match(/^\s*(?:[…⋯○✓✔√✘✕×x-]|ok)\s+(\d+)\b/i);
   return m?.[1] ?? null;
 }
