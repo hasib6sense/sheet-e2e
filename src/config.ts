@@ -14,6 +14,7 @@ const TAB_SUITES_CANDIDATES = [
 ];
 
 let cachedConfig: ResolvedConfig | null = null;
+let loadedDotEnvCwd: string | null = null;
 
 export type ResolvedConfig = {
   spreadsheetId: string;
@@ -26,6 +27,30 @@ export type ResolvedConfig = {
   tabSuitesPath: string | null;
   cwd: string;
 };
+
+/** Load host `.env` into process.env (does not override existing env). */
+function loadHostDotEnv(cwd: string) {
+  if (loadedDotEnvCwd === cwd) return;
+  loadedDotEnvCwd = cwd;
+  const envPath = join(cwd, ".env");
+  if (!existsSync(envPath)) return;
+  for (const raw of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (!key || process.env[key] !== undefined) continue;
+    let val = line.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    process.env[key] = val;
+  }
+}
 
 function readJsonFile(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -106,6 +131,8 @@ function parseSkipTabs(fileConfig: SheetE2eConfigFile): Set<string> {
 export function loadConfig(cwd = process.cwd(), forceReload = false): ResolvedConfig {
   if (cachedConfig && cachedConfig.cwd === cwd && !forceReload) return cachedConfig;
 
+  loadHostDotEnv(cwd);
+
   const found = findOptionalConfigFile(cwd);
   const fileConfig = found?.data ?? {};
   const { suites, suitesPath } = loadTabSuites(cwd, fileConfig);
@@ -145,6 +172,7 @@ export function loadConfig(cwd = process.cwd(), forceReload = false): ResolvedCo
 
 export function clearConfigCache() {
   cachedConfig = null;
+  loadedDotEnvCwd = null;
 }
 
 export function getSpreadsheetId(): string {
