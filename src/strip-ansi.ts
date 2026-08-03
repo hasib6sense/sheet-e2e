@@ -20,8 +20,22 @@ export type LogLineKind =
 export function isConsoleOrDumpLine(line: string): boolean {
   const t = line.trim();
   if (/^console\.(log|warn|error|info|debug)\b/.test(t)) return true;
+  // React Testing Library / react-dom act() warning body (indented under console.error).
+  if (/\bact\s*\(/i.test(t)) return true;
+  if (/^An update to\b/i.test(t)) return true;
+  if (/^When testing,\b/i.test(t)) return true;
+  if (/^This ensures that\b/i.test(t)) return true;
+  if (/^Learn more at\b/i.test(t)) return true;
+  if (/^Not implemented:/i.test(t)) return true;
+  if (/^Error:\s/i.test(t)) return true;
+  if (/^\/\*/.test(t) || /\*\/$/.test(t)) return true;
+  // Prose / URLs — describe() titles are short labels without sentence punctuation.
+  if (/https?:\/\//i.test(t)) return true;
+  if (/[.!]$/.test(t)) return true;
   if (/^[A-Za-z_$][\w$]*:\s/.test(t)) return true;
-  if (/^[\[\{]/.test(t) || /^[\]\}],?$/.test(t)) return true;
+  if (/^[\[{]/.test(t)) return true;
+  // Object dump closers: }, }); ], ], etc.
+  if (/^[\]}]/.test(t)) return true;
   if (/^['"`]/.test(t)) return true;
   if (/^-?\d[\d.eE+-]*,?$/.test(t)) return true;
   if (/^(true|false|null|undefined),?$/i.test(t)) return true;
