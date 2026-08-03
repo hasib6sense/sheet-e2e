@@ -28,14 +28,25 @@ For browser E2E (`Category=Playwright`), use `sheet-playwright-e2e` instead.
 
 | Sheet `Category` | Unit Test action |
 |------------------|------------------|
-| **`UI`** | **Implement** in Jest (`test` / `it` with `TC_XXX: …`) |
+| **`UI`** | **Implement** in Jest (`test` / `it` with `TC_XXX: …`) — unless UI Status is `Not Implemented` (below) |
 | **`Playwright`** or blank/legacy | **Omit** from Unit Test generation — those belong in Playwright specs |
 | **`API`** | **Omit** from Unit Test generation |
 
-- Cover **every** Category=`UI` TC on the tab (do not stop mid-range).
+### Status skip — `Not Implemented` (non-negotiable)
+
+Same omit tier as Category=`API`. Read the **UI Status** cell on every Category=`UI` row **before** writing a Jest case:
+
+| `UI Status` value | Unit Test generation |
+|-------------------|----------------------|
+| **`Not Implemented`** | **Omit** — feature is not built yet. Do **not** add `it`/`test`. Leave the cell as **`Not Implemented`**. Do not sync Passed/Failed over it. |
+| blank / `N/A` / `Passed` / `Failed` / other | **Implement** (or keep) the Jest case for that TC |
+
+- **Do not** treat blank/`N/A` as “skip” — only the exact status **`Not Implemented`** means feature-not-ready.
+- **Do not** invent a test and mark it skipped with `it.skip` — omit the TC from the suite entirely (like API).
+- Comment in the file which UI TC IDs were omitted for **`Not Implemented`** (and which Playwright/API IDs were omitted by Category).
+- Cover **every other** Category=`UI` TC on the tab (do not stop mid-range; do not drop rows just because they need mocks, setup, auth context, or component plumbing).
 - Keep sheet TC IDs aligned with `it("TC_XXX: …")` or `test("TC_XXX: …")`.
 - Never add Category=`UI` cases to Playwright specs.
-- Within the Unit Test scope, discard a TC only when the sheet explicitly marks it **`Not Implemented`**. Do not drop rows just because they need mocks, setup, auth context, or component plumbing.
 
 ## Sheet columns → Jest
 
@@ -50,9 +61,9 @@ Read the full tab before writing. Use sheet values; do not invent nicer inputs.
 | Test Data | Exact inputs; `N/A` = no payload; honor quoted spaces |
 | Endpoint | Component route / module under test (not browser `page.goto`). If the cell is multi-line like `Protected` then `/leave-management/holidays`, use the route for context and treat `Protected` as an auth hint for setup/mocks. |
 | Expected Result | Component/DOM/hook/util assertions |
-| UI Status / Comment | Sync after Unit Test run — never invent Passed |
+| UI Status / Comment | Sync after Unit Test run — never invent Passed. Never overwrite **`Not Implemented`**. |
 
-Comment in the file which sheet tab + which UI TC IDs are covered / which Playwright/API IDs are omitted.
+Comment in the file which sheet tab + which UI TC IDs are covered / which IDs are omitted (`Not Implemented` UI Status, Category Playwright/API).
 
 ## Suite mapping
 
@@ -94,6 +105,7 @@ Sync updates Category=`UI` rows only:
 
 - **UI Status** → Passed / Failed
 - **Comment** → failure reason (cleared on pass)
+- **Never** change rows whose **UI Status** is already **`Not Implemented`** (feature not built — not a test result)
 - **Playwright** column and Category=`API` / `Playwright` rows are not updated by this engine
 
 Skip sync: `E2E_NO_SHEET_SYNC=1`. Jest JSON report defaults to `jest-results.json` (`E2E_UNIT_RESULTS_FILE` to override).
@@ -103,7 +115,8 @@ Skip sync: `E2E_NO_SHEET_SYNC=1`. Jest JSON report defaults to `jest-results.jso
 ```
 - [ ] Read sheet tab (headers + all TC rows)
 - [ ] Keep Category === UI only; omit Playwright and API
-- [ ] Write Jest file(s) with matching TC_ IDs
+- [ ] Omit rows where UI Status === Not Implemented (feature not built); leave that cell unchanged
+- [ ] Write Jest file(s) with matching TC_ IDs for the remaining UI rows
 - [ ] Wire unitSpecs in e2e/tab-suites.json
 - [ ] Use sheet Test Data / Expected Result
 - [ ] Run Unit Test engine for that tab; fix assertions or leave Failed + Comment

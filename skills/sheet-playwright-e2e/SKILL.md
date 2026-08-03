@@ -70,16 +70,27 @@ Host layout after init:
 
 | Sheet `Category` | Playwright |
 |------------------|------------|
-| **`Playwright`** or blank/legacy | Implement UI assertions |
+| **`Playwright`** or blank/legacy | Implement UI assertions — unless Playwright status is `Not Implemented` (below) |
 | **`UI`** | **Omit** — Unit Test engine; use `sheet-unit-test` skill |
 | **`API`** | **Omit** from Playwright generation — belongs outside this engine |
 
-- `Playwright` (or blank) rows → `playwright-tests/` specs only.
+### Status skip — `Not Implemented` (non-negotiable)
+
+Same omit tier as Category=`API`. Read the **Playwright** status cell on every Playwright-scope row **before** writing a spec:
+
+| `Playwright` column value | Playwright generation |
+|---------------------------|------------------------|
+| **`Not Implemented`** | **Omit** — feature is not built yet. Do **not** add `test(...)`. Leave the cell as **`Not Implemented`**. Do not sync Passed/Failed over it. |
+| blank / `N/A` / `Passed` / `Failed` / other | **Implement** (or keep) the Playwright case for that TC |
+
+- **Do not** treat blank/`N/A` as “skip” — only the exact status **`Not Implemented`** means feature-not-ready.
+- **Do not** invent a test and soft-skip with `test.skip` — omit the TC from the suite entirely (like API).
+- Comment in the spec which TC IDs were omitted for **`Not Implemented`** (and which UI/API IDs were omitted by Category).
+- `Playwright` (or blank) rows → `playwright-tests/` specs only (after the status filter above).
 - `UI` rows → Jest via `unitSpecs` + `sheet-unit-test` skill — **never** add to Playwright specs.
 - `API` rows → hidden from the runner entirely.
-- For rows in the Playwright scope, discard a TC only when the sheet explicitly marks it **`Not Implemented`**. Do not omit rows just because they are flaky, failing, protected, or missing nearby helpers.
 - Do not port API Expected Results (HTTP status / JSON) as the main Playwright assertion.
-- Cover **every** `Playwright`-category TC on the tab (do not stop mid-range).
+- Cover **every other** `Playwright`-category TC on the tab (do not stop mid-range; do not omit just because flaky, failing, protected, or missing helpers).
 - Keep sheet TC IDs aligned with `test("TC_XXX: …")` — an off-by-one ID collides and confuses the runner.
 
 ## Pass / fail only
@@ -101,9 +112,9 @@ Read the full tab before writing. Use sheet values; do not invent nicer emails/O
 | Test Data | Exact fills; `N/A` = no payload; honor quoted spaces |
 | Endpoint | `page.goto` + URL asserts. If the cell is multi-line like `Protected` then `/leave-management/holidays`, use the route as the real endpoint and treat `Protected` as an auth hint. |
 | Expected Result | UI text, visibility, redirects |
-| Playwright / UI Status / Comment | Sync after run — never invent Passed |
+| Playwright / UI Status / Comment | Sync after run — never invent Passed. Never overwrite **`Not Implemented`**. |
 
-Comment in the spec which tab + TC range is covered / which API IDs are omitted.
+Comment in the spec which tab + TC range is covered / which IDs are omitted (`Not Implemented` Playwright status, Category UI/API).
 
 ## Auth setup (logged-in suites)
 
@@ -124,7 +135,7 @@ When generating a suite:
 ```
 - [ ] auth.setup.ts writes storage state for chromium project
 - [ ] Authenticated tab → project "chromium"; unauth → "chromium-unauth"
-- [ ] Category Playwright/blank only; IDs match sheet (UI → sheet-unit-test)
+- [ ] Category Playwright/blank only; omit Playwright status === Not Implemented; IDs match sheet (UI → sheet-unit-test)
 - [ ] tab-suites.json entry added
 ```
 
@@ -145,6 +156,7 @@ Sync (package / CLI) updates non-API rows:
 
 - **Playwright runs** → `Playwright` = Passed / Failed (`skipped` / `timedOut` → Failed)
 - **Unit Test runs** → `UI Status` = Passed / Failed
+- **Never** overwrite a status cell that is already **`Not Implemented`** (feature not built)
 - **Comment** → failure reason (cleared on pass); **API rows never updated**
 - Status cells are formatted as centered bold badges (green Passed, red Failed, gray Not Implemented)
 
