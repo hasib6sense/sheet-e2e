@@ -2,6 +2,7 @@
   {
     "tab": "Example",
     "specs": ["playwright-tests/example.spec.ts"],
-    "project": "chromium"
+    "project": "chromium",
+    "unitSpecs": ["__tests__/example.unit.test.tsx"]
   }
 ]

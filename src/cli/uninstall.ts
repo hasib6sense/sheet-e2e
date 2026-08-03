@@ -231,6 +231,7 @@ export async function runUninstall(args: string[]) {
   if (purge) {
     removeTree(cwd, join(cwd, "e2e"));
     removeFile(cwd, join(cwd, "playwright-tests/example.spec.ts"));
+    removeFile(cwd, join(cwd, "__tests__/example.unit.test.tsx"));
   } else {
     removeDirIfEmpty(cwd, join(cwd, "e2e"));
   }

@@ -38,6 +38,43 @@ function copyTemplate(cwd: string, relPath: string, dest: string, force: boolean
   return writeIfMissing(cwd, dest, content, force);
 }
 
+/**
+ * Older init templates shipped Example without unitSpecs. On re-init, add the
+ * field when the Example entry is still present and missing it — do not touch
+ * other tabs or overwrite an existing unitSpecs array.
+ */
+function ensureExampleTabSuiteHasUnitSpecs(cwd: string) {
+  const path = join(cwd, "e2e/tab-suites.json");
+  if (!existsSync(path)) return;
+
+  let suites: unknown;
+  try {
+    suites = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    console.log("  skip e2e/tab-suites.json (invalid JSON)");
+    return;
+  }
+  if (!Array.isArray(suites)) return;
+
+  const exampleUnit = "__tests__/example.unit.test.tsx";
+  let changed = false;
+  for (const suite of suites) {
+    if (
+      suite &&
+      typeof suite === "object" &&
+      (suite as { tab?: string }).tab === "Example" &&
+      !Array.isArray((suite as { unitSpecs?: unknown }).unitSpecs)
+    ) {
+      (suite as { unitSpecs: string[] }).unitSpecs = [exampleUnit];
+      changed = true;
+    }
+  }
+  if (!changed) return;
+
+  writeFileSync(path, `${JSON.stringify(suites, null, 2)}\n`, "utf8");
+  console.log(`  updated: ${rel(cwd, path)} (Example unitSpecs)`);
+}
+
 function detectAppDir(cwd: string): string {
   if (existsSync(join(cwd, "src/app"))) return "src/app";
   if (existsSync(join(cwd, "app"))) return "app";
@@ -358,6 +395,7 @@ export async function runInit(args: string[]) {
   console.log("Runner shell");
   ensureDir(join(cwd, "e2e"));
   copyTemplate(cwd, "tab-suites.json", join(cwd, "e2e/tab-suites.json"), force);
+  ensureExampleTabSuiteHasUnitSpecs(cwd);
   copyTemplate(cwd, "env.example", join(cwd, "e2e/env.example"), force);
   copyTemplate(cwd, "e2e-README.md", join(cwd, "e2e/README.md"), force);
   if (!existsSync(join(cwd, ".env.example"))) {
@@ -393,6 +431,8 @@ export async function runInit(args: string[]) {
   ensureDir(join(cwd, "playwright-tests"));
   copyTemplate(cwd, "auth.setup.ts", join(cwd, "playwright-tests/auth.setup.ts"), force);
   copyTemplate(cwd, "example.spec.ts", join(cwd, "playwright-tests/example.spec.ts"), force);
+  ensureDir(join(cwd, "__tests__"));
+  copyTemplate(cwd, "example.unit.test.tsx", join(cwd, "__tests__/example.unit.test.tsx"), force);
   ensureDir(join(cwd, "playwright/.auth"));
   writeIfMissing(cwd, join(cwd, "playwright/.auth/.gitkeep"), "", force);
   ensureJsonReporter(cwd);
@@ -424,7 +464,7 @@ export async function runInit(args: string[]) {
   2. Place service-account JSON at credentials/credentials.json (or path in GOOGLE_APPLICATION_CREDENTIALS)
   3. Share the spreadsheet with that service account as Editor
   4. Adjust playwright-tests/auth.setup.ts selectors to your sign-in page
-  5. Map real sheet tabs → specs in e2e/tab-suites.json
+  5. Map real sheet tabs → specs + unitSpecs in e2e/tab-suites.json
   6. npm run dev → open the Runner URL printed above (also documented in e2e/README.md)
   7. Or verify with: npm run test:e2e:doctor
 

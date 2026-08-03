@@ -25,4 +25,7 @@ npm run test:e2e          # interactive tab select
 npm run test:e2e:all      # all mapped tabs
 ```
 
-Map sheet tabs → specs in `e2e/tab-suites.json`.
+Map sheet tabs in `e2e/tab-suites.json`:
+
+- `specs` → Playwright (`Category=Playwright`)
+- `unitSpecs` → Jest Unit Test (`Category=UI`)
