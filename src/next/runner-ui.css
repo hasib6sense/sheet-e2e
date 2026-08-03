@@ -296,6 +296,11 @@
 /* Dropdown menus — scroll must not depend on host Tailwind. */
 .sheet-e2e-select {
   position: relative;
+  z-index: 0;
+}
+
+.sheet-e2e-select--open {
+  z-index: 50;
 }
 
 .sheet-e2e-select__trigger {

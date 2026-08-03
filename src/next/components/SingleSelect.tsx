@@ -60,7 +60,7 @@ export function SingleSelect({
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn("sheet-e2e-select", className)}>
+    <div ref={rootRef} className={cn("sheet-e2e-select", open && "sheet-e2e-select--open", className)}>
       <button
         type="button"
         disabled={disabled || !options.length}

@@ -289,7 +289,6 @@ export function E2eRunnerPage() {
   const [runLabel, setRunLabel] = useState("");
   const [lastExitCode, setLastExitCode] = useState<number | null>(null);
   const [logDismissed, setLogDismissed] = useState(false);
-  const [modulePickerOpen, setModulePickerOpen] = useState(false);
 
   const loadCases = useCallback(async () => {
     setLoading(true);
@@ -625,7 +624,7 @@ export function E2eRunnerPage() {
 
         <section className="mb-3 rounded-lg border bg-white p-4">
           <div className="flex flex-wrap items-end gap-4">
-            <div className="relative z-10 min-w-[180px]">
+            <div className="relative min-w-[180px]">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Engine</label>
               <SingleSelect
                 value={engine}
@@ -641,13 +640,12 @@ export function E2eRunnerPage() {
               />
             </div>
 
-            <div className="relative z-10 min-w-[220px] flex-1">
+            <div className="relative min-w-[220px] flex-1">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Modules</label>
               <ModuleMultiSelect
                 options={moduleOptions}
                 value={selectedModules}
                 onChange={handleModulesChange}
-                onOpenChange={setModulePickerOpen}
                 disabled={!moduleOptions.length || controlsLocked}
               />
             </div>
@@ -663,7 +661,7 @@ export function E2eRunnerPage() {
               />
             </div>
 
-            <div className="relative z-10 min-w-[150px]">
+            <div className="relative min-w-[150px]">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Status</label>
               <SingleSelect
                 value={statusFilter}

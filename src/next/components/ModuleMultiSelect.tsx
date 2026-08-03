@@ -83,7 +83,7 @@ export function ModuleMultiSelect({
           : `${value.length} modules selected`;
 
   return (
-    <div className="sheet-e2e-select">
+    <div className={cn("sheet-e2e-select", open && "sheet-e2e-select--open")}>
       <button
         type="button"
         disabled={disabled || !options.length}
