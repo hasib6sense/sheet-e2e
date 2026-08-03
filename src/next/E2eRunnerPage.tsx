@@ -1,7 +1,7 @@
 "use client";
 
 import "./runner-ui.css";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import type { E2eTabInfo, E2eTestCase } from "../types";
 import type { CategoryEngine } from "../google-sheets";
 import { formatErrorForSheet } from "../format-error";
@@ -109,6 +109,61 @@ function IconRefresh({ className }: { className?: string }) {
       <path d="M21 12a9 9 0 1 1-2.64-6.36" />
       <path d="M21 3v6h-6" />
     </svg>
+  );
+}
+
+function SkeletonBar({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return <span className={cn("sheet-e2e-skeleton", className)} style={style} aria-hidden />;
+}
+
+function CasesTableSkeletonRows({
+  rows = 8,
+  showModuleColumn,
+}: {
+  rows?: number;
+  showModuleColumn: boolean;
+}) {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, i) => (
+        <tr key={`skeleton-${i}`} className="border-b last:border-0" aria-hidden>
+          <td className="px-3 py-3 align-middle">
+            <SkeletonBar className="sheet-e2e-skeleton--check" />
+          </td>
+          {showModuleColumn && (
+            <td className="px-3 py-3">
+              <SkeletonBar style={{ width: `${52 + (i % 3) * 10}%` }} />
+            </td>
+          )}
+          <td className="px-3 py-3">
+            <SkeletonBar className="sheet-e2e-skeleton--sm" style={{ width: "4.5rem" }} />
+          </td>
+          <td className="px-3 py-3">
+            <SkeletonBar className="sheet-e2e-skeleton--pill" style={{ width: "5.5rem" }} />
+          </td>
+          <td className="px-3 py-3">
+            <SkeletonBar style={{ width: `${62 + (i % 4) * 8}%` }} />
+          </td>
+          <td className="px-3 py-3">
+            <SkeletonBar className="sheet-e2e-skeleton--pill" style={{ width: "6.5rem" }} />
+          </td>
+          <td className="px-3 py-3">
+            <SkeletonBar className="sheet-e2e-skeleton--sm" style={{ width: `${40 + (i % 5) * 10}%` }} />
+          </td>
+          <td className="px-3 py-3 text-right">
+            <span className="inline-flex justify-end">
+              <SkeletonBar className="sheet-e2e-skeleton--pill" style={{ width: "3.25rem" }} />
+            </span>
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 
@@ -676,7 +731,7 @@ export function E2eRunnerPage() {
 
           <span className="text-sm text-neutral-500">
             {loading
-              ? "Loading tests…"
+              ? "\u00a0"
               : visibleCases.length === moduleCases.length
                 ? `${visibleCases.length} tests shown`
                 : `${visibleCases.length} of ${moduleCases.length} tests shown`}
@@ -709,7 +764,12 @@ export function E2eRunnerPage() {
           />
         )}
 
-        <div className="overflow-hidden rounded-lg border bg-white">
+        <div
+          className="overflow-hidden rounded-lg border bg-white"
+          aria-busy={loading}
+          aria-live="polite"
+        >
+          {loading ? <span className="sheet-e2e-sr-only">Loading tests</span> : null}
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-neutral-50 text-xs uppercase text-neutral-500">
               <tr>
@@ -734,14 +794,7 @@ export function E2eRunnerPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={colSpan} className="px-3 py-12 text-center text-neutral-500">
-                    <span className="inline-flex items-center gap-2">
-                      <IconSpinner />
-                      Loading tests…
-                    </span>
-                  </td>
-                </tr>
+                <CasesTableSkeletonRows showModuleColumn={showModuleColumn} />
               ) : !selectedModules.length ? (
                 <tr>
                   <td colSpan={colSpan} className="px-3 py-12 text-center text-neutral-500">
