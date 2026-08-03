@@ -659,7 +659,7 @@ export function E2eRunnerPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 disabled={controlsLocked || !selectedModules.length}
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm disabled:opacity-50"
+                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm outline-none transition-colors focus:border-neutral-400 focus:ring-2 focus:ring-neutral-300 disabled:opacity-50"
               />
             </div>
 
