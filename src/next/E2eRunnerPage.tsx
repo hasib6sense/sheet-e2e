@@ -12,6 +12,7 @@ import { RunOutputPanel } from "./components/RunOutputPanel.tsx";
 import { Checkbox } from "./components/Checkbox.tsx";
 
 type EngineMode = "playwright" | "unit-test";
+type StatusFilter = "all" | "passed" | "failed";
 
 /** Mirror of categorizeEngine from google-sheets.ts — runs client-side. */
 function categorizeEngineClient(category: string): CategoryEngine {
@@ -281,6 +282,7 @@ export function E2eRunnerPage() {
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [syncSheet, setSyncSheet] = useState(true);
   const [runLog, setRunLog] = useState("");
@@ -352,9 +354,15 @@ export function E2eRunnerPage() {
   const showModuleColumn = selectedModules.length > 1;
 
   const visibleCases = useMemo(() => {
-    if (!search.trim()) return moduleCases;
+    let list = moduleCases;
+    if (statusFilter !== "all") {
+      list = list.filter(
+        (c) => currentStatus(c, engine).trim().toLowerCase() === statusFilter,
+      );
+    }
+    if (!search.trim()) return list;
     const q = search.trim().toLowerCase();
-    return moduleCases.filter(
+    return list.filter(
       (c) =>
         c.testCaseId.toLowerCase().includes(q) ||
         c.testCase.toLowerCase().includes(q) ||
@@ -362,7 +370,7 @@ export function E2eRunnerPage() {
         c.uiStatus.toLowerCase().includes(q) ||
         c.playwright.toLowerCase().includes(q),
     );
-  }, [moduleCases, search]);
+  }, [moduleCases, search, statusFilter, engine]);
 
   const checkedInView = useMemo(
     () => moduleCases.filter((c) => checked.has(c.id)),
@@ -655,6 +663,20 @@ export function E2eRunnerPage() {
               />
             </div>
 
+            <div className="relative z-10 min-w-[150px]">
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Status</label>
+              <SingleSelect
+                value={statusFilter}
+                disabled={controlsLocked || !selectedModules.length}
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "passed", label: "Passed" },
+                  { value: "failed", label: "Failed" },
+                ]}
+                onChange={(next) => setStatusFilter(next as StatusFilter)}
+              />
+            </div>
+
             <div className="flex items-center gap-3 pb-0.5">
               <label
                 className={`flex items-center gap-2 text-sm text-neutral-600 ${
@@ -804,7 +826,9 @@ export function E2eRunnerPage() {
               ) : visibleCases.length === 0 ? (
                 <tr>
                   <td colSpan={colSpan} className="px-3 py-12 text-center text-neutral-500">
-                    No tests match your search.
+                    {search.trim() || statusFilter !== "all"
+                      ? "No tests match your filters."
+                      : "No tests in the selected module(s)."}
                   </td>
                 </tr>
               ) : (
