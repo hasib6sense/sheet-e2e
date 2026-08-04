@@ -650,17 +650,6 @@ export function E2eRunnerPage() {
               />
             </div>
 
-            <div className="min-w-[220px] flex-1">
-              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Search</label>
-              <input
-                placeholder="TC ID, title, module…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                disabled={controlsLocked || !selectedModules.length}
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm outline-none transition-colors focus:border-neutral-400 focus:ring-2 focus:ring-neutral-300 disabled:opacity-50"
-              />
-            </div>
-
             <div className="relative min-w-[150px]">
               <label className="mb-1.5 block text-sm font-medium text-neutral-700">Status</label>
               <SingleSelect
@@ -672,6 +661,17 @@ export function E2eRunnerPage() {
                   { value: "failed", label: "Failed" },
                 ]}
                 onChange={(next) => setStatusFilter(next as StatusFilter)}
+              />
+            </div>
+
+            <div className="min-w-[220px] flex-1">
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Search</label>
+              <input
+                placeholder="TC ID, title, module…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                disabled={controlsLocked || !selectedModules.length}
+                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm shadow-sm outline-none transition-colors focus:border-neutral-400 focus:ring-2 focus:ring-neutral-300 disabled:opacity-50"
               />
             </div>
 
