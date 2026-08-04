@@ -752,9 +752,16 @@ function normalizePlaywrightStatus(
   return status;
 }
 
+function pushResult(out: Map<string, ParsedResult[]>, result: ParsedResult) {
+  const key = normalizeTcId(result.tcId);
+  const list = out.get(key) ?? [];
+  list.push(result);
+  out.set(key, list);
+}
+
 function walkSuites(
   suite: { title?: string; file?: string; specs?: unknown[]; suites?: unknown[] },
-  out: Map<string, ParsedResult>,
+  out: Map<string, ParsedResult[]>,
   inheritedFile = "",
   setupFailure = "",
 ) {
@@ -790,7 +797,8 @@ function walkSuites(
         "Did not run — skipped (usually a failed setup/auth dependency)";
     }
 
-    out.set(normalizeTcId(tcId), {
+    // Keep every TC_ID occurrence — tabs reuse IDs (e.g. Leave_Management TC_003 vs Holiday TC_003).
+    pushResult(out, {
       tcId,
       title: spec.title ?? "",
       status,
@@ -809,12 +817,13 @@ function walkSuites(
   }
 }
 
-export function parsePlaywrightReport(reportPath: string): Map<string, ParsedResult> {
+/** TC_ID → all matching results (same ID can appear in multiple tab specs). */
+export function parsePlaywrightReport(reportPath: string): Map<string, ParsedResult[]> {
   const raw = readFileSync(reportPath, "utf8");
   const report = JSON.parse(raw) as {
     suites?: { title?: string; file?: string; specs?: unknown[]; suites?: unknown[] }[];
   };
-  const byTc = new Map<string, ParsedResult>();
+  const byTc = new Map<string, ParsedResult[]>();
   let setupFailure = "";
   for (const suite of report.suites ?? []) {
     setupFailure = setupFailure || collectSetupFailureMessage(suite);
@@ -825,8 +834,8 @@ export function parsePlaywrightReport(reportPath: string): Map<string, ParsedRes
   return byTc;
 }
 
-/** Parse Jest `--json --outputFile` report into TC_XXX → result map. */
-export function parseJestReport(reportPath: string): Map<string, ParsedResult> {
+/** Parse Jest `--json --outputFile` report into TC_XXX → result list map. */
+export function parseJestReport(reportPath: string): Map<string, ParsedResult[]> {
   const raw = readFileSync(reportPath, "utf8");
   const report = JSON.parse(raw) as {
     testResults?: {
@@ -839,7 +848,7 @@ export function parseJestReport(reportPath: string): Map<string, ParsedResult> {
       }[];
     }[];
   };
-  const byTc = new Map<string, ParsedResult>();
+  const byTc = new Map<string, ParsedResult[]>();
 
   for (const fileResult of report.testResults ?? []) {
     const file = fileResult.name ?? "";
@@ -866,7 +875,7 @@ export function parseJestReport(reportPath: string): Map<string, ParsedResult> {
           ? (assertion.failureMessages ?? []).filter(Boolean).join("\n---\n")
           : "";
 
-      byTc.set(normalizeTcId(tcId), {
+      pushResult(byTc, {
         tcId,
         title,
         status: status === "passed" ? "passed" : "failed",
@@ -911,10 +920,27 @@ function resultBelongsToTab(
   });
 }
 
+/** Prefer the report entry whose spec file is mapped to this tab (handles reused TC_IDs). */
+function pickResultForTab(
+  candidates: ParsedResult[] | undefined,
+  tab: string,
+  engine: SyncEngine,
+): ParsedResult | undefined {
+  if (!candidates?.length) return undefined;
+  const matched = candidates.filter((r) => resultBelongsToTab(r, tab, engine));
+  if (!matched.length) return undefined;
+  // Last attempt / last file entry wins when the same tab declares the ID more than once.
+  return matched[matched.length - 1];
+}
+
+function flattenResults(resultsByTc: Map<string, ParsedResult[]>): ParsedResult[] {
+  return Array.from(resultsByTc.values()).flat();
+}
+
 export async function syncTabResults(
   sheets: sheets_v4.Sheets,
   tab: string,
-  resultsByTc: Map<string, ParsedResult>,
+  resultsByTc: Map<string, ParsedResult[]>,
   engine: SyncEngine = "playwright",
 ): Promise<number> {
   const resolved = await resolveSheetTabTitle(sheets, tab);
@@ -954,9 +980,8 @@ export async function syncTabResults(
     if (engine === "playwright" && (eng === "unit-test")) continue;
     if (engine === "unit-test" && eng !== "unit-test") continue;
 
-    const result = resultsByTc.get(normalizeTcId(tcRaw));
+    const result = pickResultForTab(resultsByTc.get(normalizeTcId(tcRaw)), tab, engine);
     if (!result) continue;
-    if (!resultBelongsToTab(result, tab, engine)) continue;
 
     const status = result.status === "passed" ? "Passed" : "Failed";
     const comment =
@@ -1042,11 +1067,11 @@ export async function syncSheetsForTabs(
     try {
       const n = await syncTabResults(sheets, tab, resultsByTc, engine);
       if (n === 0) {
-        const forTab = Array.from(resultsByTc.values()).filter((r) =>
+        const forTab = flattenResults(resultsByTc).filter((r) =>
           resultBelongsToTab(r, tab, engine),
         ).length;
         summary.push(
-          `${tab}: 0 row(s) updated (${resultsByTc.size} TC(s) in report, ${forTab} matched this tab's specs)`,
+          `${tab}: 0 row(s) updated (${flattenResults(resultsByTc).length} TC result(s) in report, ${forTab} matched this tab's specs)`,
         );
       } else {
         summary.push(`${tab}: ${n} row(s) updated`);
