@@ -59,9 +59,8 @@ Usage:
 Env:
   GOOGLE_SPREADSHEET_ID
   GOOGLE_APPLICATION_CREDENTIALS
-  E2E_NO_SHEET_SYNC=1
-  E2E_TABS="Sign In,Projects"
-  SHEET_E2E_CONFIG=sheet-e2e.config.json
+  E2E_RESULTS_FILE=playwright-results.json
+  E2E_TAB_SUITES_PATH=e2e/tab-suites.json
 `);
 }
 

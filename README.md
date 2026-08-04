@@ -81,17 +81,19 @@ Do these **after** `init` / `doctor` before using the runner:
    ```
    GOOGLE_SPREADSHEET_ID=your-sheet-id
    GOOGLE_APPLICATION_CREDENTIALS=credentials/credentials.json
+   E2E_RESULTS_FILE=playwright-results.json
+   E2E_TAB_SUITES_PATH=e2e/tab-suites.json
    ```
 2. **Credentials** — place the Google service-account JSON at that path (never commit it).
 3. **Share sheet** — invite the service account email as **Editor**.
 4. **Cursor MCP** — reload MCP / restart Cursor so `.cursor/mcp.json` loads the package Sheets launcher. Agents must pass `spreadsheet: <GOOGLE_SPREADSHEET_ID>` (see `connected-google-sheet` skill).
-5. **Auth setup** — edit `playwright-tests/auth.setup.ts` selectors/URL to match your sign-in page; set `TEST_SIGNIN_EMAIL` / `TEST_SIGNIN_PASSWORD` if needed.
+5. **Auth setup** — edit `playwright-tests/auth.setup.ts` selectors/URL to match your sign-in page.
 6. **Tab map** — edit `e2e/tab-suites.json` using **exact Google Sheet tab titles** (e.g. `Apply_Leave`, `Forget_Password`). Map `specs` (Playwright) and optional `unitSpecs` (Jest / Category=`UI`). Wrong tab names show empty Status / Comment (local-only fallback). The runner also fuzzy-matches spaces↔underscores and shows a warning banner.
 7. **Specs** — write Playwright (`Category=Playwright`) and/or Jest unit tests (`Category=UI`). Use the Cursor skills; full sheet→spec codegen is separate.
-8. **Optional gate** — merge `e2e-gate.middleware.ts` into `middleware.ts` so `/e2e-runner` is off in production unless `E2E_RUNNER_ENABLED=1`.
+8. **Optional gate** — merge `e2e-gate.middleware.ts` into `middleware.ts` so `/e2e-runner` is off in production unless enabled.
 9. **Run**
    ```bash
-   npm run dev          # app on baseURL (default localhost:3000)
+   npm run dev          # app on localhost:3000
    # open the Runner URL printed by init (default http://localhost:3000/e2e-runner)
    # see e2e/README.md
    npm run test:e2e     # or test:e2e:all / test:e2e:tab "Tab Name"
@@ -172,17 +174,8 @@ Import UI from `@6sense/sheet-e2e/next` and handlers from `@6sense/sheet-e2e/nex
 ```
 GOOGLE_SPREADSHEET_ID=...
 GOOGLE_APPLICATION_CREDENTIALS=credentials/credentials.json
-TEST_SIGNIN_EMAIL=...
-TEST_SIGNIN_PASSWORD=...
-# Optional
 E2E_RESULTS_FILE=playwright-results.json
-E2E_UNIT_RESULTS_FILE=jest-results.json
-E2E_SKIP_TABS=Summery
 E2E_TAB_SUITES_PATH=e2e/tab-suites.json
-E2E_NO_SHEET_SYNC=1
-E2E_RUNNER_ENABLED=1
-PLAYWRIGHT_BASE_URL=http://localhost:3000
-# → Runner UI: $PLAYWRIGHT_BASE_URL/e2e-runner
 ```
 
 ## Sheet contract
