@@ -2,6 +2,8 @@
 
 A simple guide for developers and QA.
 
+**Need install + sheet connection steps?** See [GETTING-STARTED.md](./GETTING-STARTED.md).
+
 ---
 
 ## The big picture

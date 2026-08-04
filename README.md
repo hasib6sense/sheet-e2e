@@ -2,7 +2,9 @@
 
 Reusable Playwright + Unit Test **runner** for Next.js apps: UI page, API routes, Google Sheet sync, Cursor skills, Sheets MCP launcher, and CLI.
 
-**Start here (plain language):** [docs/HOW-IT-WORKS.md](./docs/HOW-IT-WORKS.md) — process, Dev vs QA, and why this package exists.
+**Full setup guide (start here):** [docs/GETTING-STARTED.md](./docs/GETTING-STARTED.md) — service account, install, init, `.env`, `tab-suites.json`, Runner.
+
+**Process overview:** [docs/HOW-IT-WORKS.md](./docs/HOW-IT-WORKS.md) — Dev vs QA and why this package exists.
 
 ---
 
