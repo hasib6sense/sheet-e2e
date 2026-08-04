@@ -100,14 +100,18 @@ npx sheet-e2e doctor
 | Tailwind | package scan via `@source` / `content` when present |
 | Env | creates/merges the four minimal `.env` keys |
 | Git | credentials, auth state, results in `.gitignore` |
-| Cursor | `.cursor/mcp.json` + skills under `.cursor/skills/` |
+| Cursor | `.cursor/mcp.json` + skills under `.cursor/skills/` (default, or `--cursor`) |
+| OpenCode | `opencode.json` MCP + skills under `.opencode/skills/` (`--opencode`) |
 | Gate | `e2e-gate.middleware.ts` template (optional merge into middleware) |
 
 ### Init flags
 
 | Flag | Meaning |
 |------|---------|
-| *(default)* | Full host wiring |
+| *(default)* | Full host wiring + Cursor agents |
+| `--cursor` | Cursor MCP + skills (same as default) |
+| `--opencode` | OpenCode MCP + skills only |
+| `--cursor --opencode` | Both agents |
 | `--minimal` | Runner shell only |
 | `--force` | Overwrite existing scaffold files |
 | `--no-install` | Skip peer install |
@@ -131,11 +135,20 @@ Restart `npm run dev` after changing `.env`.
 
 ---
 
-## 5. Reload Cursor MCP (agents → same sheet)
+## 5. Reload agent MCP (same sheet)
 
-1. Confirm `.cursor/mcp.json` points at the package launcher (written by `init`).
+**Cursor (default init):**
+
+1. Confirm `.cursor/mcp.json` points at the package launcher.
 2. Reload MCP / restart Cursor.
-3. Agents must use **`GOOGLE_SPREADSHEET_ID` from this project’s `.env`** on every Sheets call (see the `connected-google-sheet` skill).
+
+**OpenCode (`npx sheet-e2e init --opencode`):**
+
+1. Confirm `opencode.json` has `mcp.google-sheets` → package launcher.
+2. Restart OpenCode / reload MCP.
+3. Skills live under `.opencode/skills/`.
+
+Agents must use **`GOOGLE_SPREADSHEET_ID` from this project’s `.env`** on every Sheets call (see the `connected-google-sheet` skill). The package MCP launcher loads `.env` from the project cwd.
 
 Do **not** rely on a previously connected MCP default or a hardcoded spreadsheet ID from docs.
 

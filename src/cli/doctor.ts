@@ -77,23 +77,44 @@ export async function runDoctor() {
 
   const mcpLauncher = join(cwd, "node_modules/@6sense/sheet-e2e/bin/google-sheets-mcp.mjs");
   const mcpJson = join(cwd, ".cursor/mcp.json");
+  const openCodeJson = join(cwd, "opencode.json");
+  const openCodeJsonc = join(cwd, "opencode.jsonc");
   checks.push(
     check(existsSync(mcpLauncher), "Sheets MCP launcher", mcpLauncher),
   );
-  if (existsSync(mcpJson)) {
-    const mcpText = readFileSync(mcpJson, "utf8");
+
+  const cursorMcpOk =
+    existsSync(mcpJson) &&
+    (() => {
+      const mcpText = readFileSync(mcpJson, "utf8");
+      return mcpText.includes("google-sheets-mcp.mjs") || mcpText.includes("google-sheet-mcp");
+    })();
+  const openCodeText = existsSync(openCodeJson)
+    ? readFileSync(openCodeJson, "utf8")
+    : existsSync(openCodeJsonc)
+      ? readFileSync(openCodeJsonc, "utf8")
+      : "";
+  const openCodeMcpOk =
+    Boolean(openCodeText) &&
+    (openCodeText.includes("google-sheets-mcp.mjs") || openCodeText.includes("google-sheet-mcp"));
+
+  if (cursorMcpOk) {
+    checks.push(check(true, "Sheets MCP config", ".cursor/mcp.json (Cursor)"));
+  } else if (openCodeMcpOk) {
     checks.push(
       check(
-        mcpText.includes("google-sheets-mcp.mjs") || mcpText.includes("google-sheet-mcp"),
-        ".cursor/mcp.json Sheets MCP",
-        mcpText.includes("google-sheets-mcp.mjs")
-          ? "package launcher"
-          : "custom / legacy path",
+        true,
+        "Sheets MCP config",
+        existsSync(openCodeJson) ? "opencode.json (OpenCode)" : "opencode.jsonc (OpenCode)",
       ),
     );
   } else {
     checks.push(
-      check(false, ".cursor/mcp.json Sheets MCP", "missing — run: npx sheet-e2e init"),
+      check(
+        false,
+        "Sheets MCP config",
+        "missing — run: npx sheet-e2e init   or   npx sheet-e2e init --opencode",
+      ),
     );
   }
 

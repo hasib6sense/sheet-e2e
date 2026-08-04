@@ -36,12 +36,15 @@ function printHelp() {
 @6sense/sheet-e2e — Playwright + Unit Test runner + Google Sheet sync
 
 Usage:
-  sheet-e2e init [--force] [--minimal] [--no-install] [--browsers]
-      Full host wiring by default (runner + Playwright + Next/Tailwind + env + skills).
+  sheet-e2e init [--force] [--minimal] [--no-install] [--browsers] [--cursor] [--opencode]
+      Full host wiring by default (runner + Playwright + Next/Tailwind + env + Cursor skills/MCP).
       --minimal     runner shell only (old behavior)
       --force       overwrite existing scaffold files
       --no-install  skip npm i -D googleapis @playwright/test
       --browsers    also run npx playwright install
+      --cursor      wire Cursor MCP + skills (default when neither agent flag is set)
+      --opencode    wire OpenCode MCP + skills (.opencode/skills + opencode.json)
+                    use both flags to wire Cursor and OpenCode together
 
   sheet-e2e uninstall [-y] [--purge] [--keep-dep]
       Remove runner wiring from the host project (reverse of init).

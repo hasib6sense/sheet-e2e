@@ -1,16 +1,39 @@
 #!/usr/bin/env node
 /**
- * Cursor MCP entry for Google Sheets — resolves `google-sheet-mcp` from
+ * MCP entry for Google Sheets — resolves `google-sheet-mcp` from
  * this package (or the host hoist) so hosts do not need a separate install.
  *
- * Configured by `sheet-e2e init` → `.cursor/mcp.json`.
+ * Wired by `sheet-e2e init` for Cursor (`.cursor/mcp.json`) and/or OpenCode (`opencode.json`).
+ * Loads project `.env` so GOOGLE_SPREADSHEET_ID works without Cursor's envFile.
  */
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
+
+function loadProjectEnv() {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+    const eq = trimmed.indexOf("=");
+    const key = trimmed.slice(0, eq).trim();
+    if (!key || process.env[key] !== undefined) continue;
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+loadProjectEnv();
 
 function resolveServer() {
   try {

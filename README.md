@@ -36,9 +36,12 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#main
 
 | Flag | Meaning |
 |------|---------|
-| *(default)* | Full wiring: runner + Playwright + Next/Tailwind + env + gitignore + Cursor skills + MCP config + `e2e/README.md` |
+| *(default)* | Full wiring + **Cursor** MCP/skills (`.cursor/mcp.json`, `.cursor/skills/`) |
+| `--cursor` | Explicit Cursor agent wiring (same as default) |
+| `--opencode` | OpenCode agent wiring (`opencode.json` MCP + `.opencode/skills/`) |
+| `--cursor --opencode` | Wire both agents |
 | `--minimal` | Runner shell only (page, APIs, `tab-suites.json`, scripts) — still prints Runner URL |
-| `--force` | Overwrite existing scaffold files (careful on existing apps; also overwrites `.cursor/mcp.json`) |
+| `--force` | Overwrite existing scaffold files (careful on existing apps; also overwrites MCP configs) |
 | `--no-install` | Do not auto `npm i -D googleapis @playwright/test` |
 
 **Existing project tip:** If you already have `playwright.config.ts` / `auth.setup.ts`, run `init` **without** `--force` so those files are skipped and only runner routes / `tab-suites` / patches are added.
@@ -59,12 +62,12 @@ After `init` / `doctor`, look for the **E2E Runner UI** banner — default URL i
 | Tailwind | Adds `@source` in `globals.css` **and** `content` in `tailwind.config.*` when present |
 | Env | Creates/merges `.env` keys from template |
 | Git | Appends `.gitignore` (auth, results, credentials) |
-| Skills | Copies `.cursor/skills/connected-google-sheet/`, `sheet-driven-qa/`, `sheet-playwright-e2e/`, `sheet-unit-test/` |
-| MCP | Writes `.cursor/mcp.json` → `bin/google-sheets-mcp.mjs` (package bundles `google-sheet-mcp`; skipped if file exists unless `--force`) |
+| Skills | Cursor (default): `.cursor/skills/…` · OpenCode (`--opencode`): `.opencode/skills/…` |
+| MCP | Cursor: `.cursor/mcp.json` · OpenCode: `opencode.json` → package `google-sheets-mcp.mjs` |
 | Docs | Writes `e2e/README.md` with Runner URL and prints access banner at end of init |
 | Gate | Writes `e2e-gate.middleware.ts` (merge into your middleware) |
 
-`google-sheet-mcp` is a **dependency of this package** — you do **not** need a separate `npm i google-sheet-mcp`. Reload Cursor MCP (or restart Cursor) after init so Sheets tools appear.
+`google-sheet-mcp` is a **dependency of this package** — you do **not** need a separate `npm i google-sheet-mcp`. After init, reload Cursor MCP and/or restart OpenCode so Sheets tools appear.
 
 Peers `googleapis` / `@playwright/test` are still installed into the **host** unless you used `--no-install`.
 

@@ -274,10 +274,10 @@ function mergeGitignore(cwd: string) {
   console.log(`  updated: .gitignore (+ ${toAdd.length} entries)`);
 }
 
-function copySkills(cwd: string, force: boolean) {
+function copySkills(cwd: string, force: boolean, skillsRoot: string) {
   for (const name of SKILL_DIRS) {
     const src = join(PKG_ROOT, "skills", name);
-    const dest = join(cwd, ".cursor/skills", name);
+    const dest = join(cwd, skillsRoot, name);
     if (!existsSync(src)) {
       console.log(`  skip skill ${name} (not in package)`);
       continue;
@@ -290,6 +290,91 @@ function copySkills(cwd: string, force: boolean) {
     cpSync(src, dest, { recursive: true });
     console.log(`  wrote: ${rel(cwd, dest)}`);
   }
+}
+
+type AgentTarget = "cursor" | "opencode";
+
+/** Default = Cursor. `--cursor` / `--opencode` select explicitly; both flags → both. */
+function resolveAgentTargets(args: string[]): AgentTarget[] {
+  const wantCursor = args.includes("--cursor");
+  const wantOpenCode = args.includes("--opencode");
+  if (!wantCursor && !wantOpenCode) return ["cursor"];
+  const out: AgentTarget[] = [];
+  if (wantCursor) out.push("cursor");
+  if (wantOpenCode) out.push("opencode");
+  return out;
+}
+
+function wireCursorAgent(cwd: string, force: boolean) {
+  console.log("\nAgent wiring (Cursor)");
+  copySkills(cwd, force, ".cursor/skills");
+  copyTemplate(cwd, "mcp.google-sheets.json", join(cwd, ".cursor/mcp.json"), force);
+  console.log(
+    "  tip: reload Cursor MCP — Sheets MCP via @6sense/sheet-e2e/bin/google-sheets-mcp.mjs",
+  );
+}
+
+function stripJsoncComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+function findOpenCodeConfigPath(cwd: string): { path: string; create: boolean } {
+  const json = join(cwd, "opencode.json");
+  const jsonc = join(cwd, "opencode.jsonc");
+  if (existsSync(json)) return { path: json, create: false };
+  if (existsSync(jsonc)) return { path: jsonc, create: false };
+  return { path: json, create: true };
+}
+
+const OPENCODE_SHEETS_MCP = {
+  type: "local",
+  command: ["node", "node_modules/@6sense/sheet-e2e/bin/google-sheets-mcp.mjs"],
+  enabled: true,
+  environment: {
+    GOOGLE_APPLICATION_CREDENTIALS: "credentials/credentials.json",
+  },
+};
+
+function wireOpenCodeAgent(cwd: string, force: boolean) {
+  console.log("\nAgent wiring (OpenCode)");
+  copySkills(cwd, force, ".opencode/skills");
+
+  const { path: configPath, create } = findOpenCodeConfigPath(cwd);
+  let raw: Record<string, unknown> = { $schema: "https://opencode.ai/config.json" };
+
+  if (!create) {
+    try {
+      const text = readFileSync(configPath, "utf8");
+      raw = JSON.parse(stripJsoncComments(text)) as Record<string, unknown>;
+    } catch {
+      console.log(
+        `  warn: could not parse ${rel(cwd, configPath)} — add google-sheets under mcp manually`,
+      );
+      return;
+    }
+  }
+
+  const mcp = (raw.mcp && typeof raw.mcp === "object" ? { ...(raw.mcp as object) } : {}) as Record<
+    string,
+    unknown
+  >;
+  if (!force && mcp["google-sheets"]) {
+    console.log(`  skip OpenCode MCP google-sheets (already set): ${rel(cwd, configPath)}`);
+  } else {
+    mcp["google-sheets"] = OPENCODE_SHEETS_MCP;
+    raw.mcp = mcp;
+    if (!raw.$schema) raw.$schema = "https://opencode.ai/config.json";
+    writeFileSync(configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+    console.log(
+      create
+        ? `  wrote: ${rel(cwd, configPath)} (OpenCode Sheets MCP)`
+        : `  updated: ${rel(cwd, configPath)} (OpenCode Sheets MCP)`,
+    );
+  }
+
+  console.log(
+    "  tip: restart OpenCode / reload MCP — launcher loads .env from the project cwd",
+  );
 }
 
 function mergePackageScripts(cwd: string) {
@@ -386,10 +471,14 @@ export async function runInit(args: string[]) {
   const minimal = args.includes("--minimal");
   const skipInstall = args.includes("--no-install");
   const browsers = args.includes("--browsers");
+  const agents = resolveAgentTargets(args);
   const cwd = process.cwd();
   const appDir = detectAppDir(cwd);
+  const agentLabel = agents.join("+");
 
-  console.log(`\n@6sense/sheet-e2e init${minimal ? " (minimal)" : " (full host wiring)"}\n`);
+  console.log(
+    `\n@6sense/sheet-e2e init${minimal ? " (minimal)" : " (full host wiring)"} — agents: ${agentLabel}\n`,
+  );
 
   // --- always: runner shell ---
   console.log("Runner shell");
@@ -441,11 +530,9 @@ export async function runInit(args: string[]) {
   ensureTailwindSource(cwd, appDir);
   mergeEnvKeys(cwd);
   mergeGitignore(cwd);
-  copySkills(cwd, force);
-  copyTemplate(cwd, "mcp.google-sheets.json", join(cwd, ".cursor/mcp.json"), force);
-  console.log(
-    "  tip: reload Cursor MCP after init — Sheets MCP is started via @6sense/sheet-e2e/bin/google-sheets-mcp.mjs",
-  );
+
+  if (agents.includes("cursor")) wireCursorAgent(cwd, force);
+  if (agents.includes("opencode")) wireOpenCodeAgent(cwd, force);
 
   copyTemplate(
     cwd,
@@ -469,6 +556,12 @@ export async function runInit(args: string[]) {
   7. Or verify with: npm run test:e2e:doctor
 
 Sheet columns: Test Case ID, Category, UI Status, Playwright, Comment
-Spec generation from sheet rows is separate (Cursor skills) — not part of init.
+Spec generation from sheet rows uses agent skills (Cursor / OpenCode) — not part of init itself.
+
+Agent flags:
+  npx sheet-e2e init              # Cursor MCP + skills (default)
+  npx sheet-e2e init --cursor     # same as default
+  npx sheet-e2e init --opencode   # OpenCode MCP + skills only
+  npx sheet-e2e init --cursor --opencode   # both
 `);
 }

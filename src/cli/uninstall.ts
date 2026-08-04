@@ -188,6 +188,41 @@ function stripGoogleSheetsMcp(cwd: string) {
   }
 }
 
+function stripJsoncComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+function stripOpenCodeGoogleSheetsMcp(cwd: string) {
+  for (const name of ["opencode.json", "opencode.jsonc"]) {
+    const configPath = join(cwd, name);
+    if (!existsSync(configPath)) continue;
+    try {
+      const raw = JSON.parse(stripJsoncComments(readFileSync(configPath, "utf8"))) as {
+        mcp?: Record<string, unknown>;
+        $schema?: string;
+      };
+      if (!raw.mcp?.["google-sheets"]) {
+        console.log(`  skip ${name} (no google-sheets MCP)`);
+        continue;
+      }
+      delete raw.mcp["google-sheets"];
+      const remaining = Object.keys(raw.mcp);
+      if (remaining.length === 0) {
+        delete raw.mcp;
+      }
+      const onlySchema = Object.keys(raw).every((k) => k === "$schema");
+      if (onlySchema) {
+        removeFile(cwd, configPath);
+      } else {
+        writeFileSync(configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+        console.log(`  updated: ${name} (removed google-sheets MCP)`);
+      }
+    } catch {
+      console.log(`  warn: could not update ${name} — remove google-sheets MCP manually if needed`);
+    }
+  }
+}
+
 /**
  * Reverse `sheet-e2e init` host wiring.
  *
@@ -244,7 +279,12 @@ export async function runUninstall(args: string[]) {
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-driven-qa"));
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-playwright-e2e"));
   removeTree(cwd, join(cwd, ".cursor/skills/sheet-unit-test"));
+  removeTree(cwd, join(cwd, ".opencode/skills/connected-google-sheet"));
+  removeTree(cwd, join(cwd, ".opencode/skills/sheet-driven-qa"));
+  removeTree(cwd, join(cwd, ".opencode/skills/sheet-playwright-e2e"));
+  removeTree(cwd, join(cwd, ".opencode/skills/sheet-unit-test"));
   stripGoogleSheetsMcp(cwd);
+  stripOpenCodeGoogleSheetsMcp(cwd);
 
   console.log("\nDependency");
   npmUninstallPackage(cwd, skipNpm);
@@ -254,11 +294,12 @@ Done. Left in place (on purpose):
   - playwright.config.ts / playwright-tests / auth.setup.ts / Jest unit tests
   - .env sheet credentials (remove manually if desired)
   - .gitignore sheet-e2e entries (harmless)
-  - other Cursor MCP servers in .cursor/mcp.json (if any)
+  - other Cursor / OpenCode MCP servers (if any)
 
 Re-install later:
   npm i -D github:hasib6sense/sheet-e2e#main
   npx sheet-e2e init
+  # or: npx sheet-e2e init --opencode
   npx sheet-e2e doctor
 `);
 }
