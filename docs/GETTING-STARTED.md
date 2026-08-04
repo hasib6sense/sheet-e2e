@@ -75,18 +75,11 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#main
 
 ## 3. Init (wires the host)
 
-**New / greenfield project:**
-
-```bash
-npx sheet-e2e init --browsers
-```
-
-**Existing project** (keep your Playwright config / auth):
-
 ```bash
 npx sheet-e2e init
-# do NOT use --force unless you intend to overwrite scaffolds
 ```
+
+**Existing project tip:** If you already have `playwright.config.ts` / `auth.setup.ts`, run without `--force` so those files are skipped.
 
 Verify:
 
@@ -118,7 +111,6 @@ npx sheet-e2e doctor
 | `--minimal` | Runner shell only |
 | `--force` | Overwrite existing scaffold files |
 | `--no-install` | Skip peer install |
-| `--browsers` | Also run `npx playwright install` |
 
 ---
 
@@ -269,7 +261,7 @@ Never overwrite a status cell that is already **`Not Implemented`**.
 - [ ] Service account JSON at credentials/credentials.json
 - [ ] Sheet shared with SA email as Editor
 - [ ] npm i -D github:hasib6sense/sheet-e2e#main
-- [ ] npx sheet-e2e init (--browsers on fresh machines)
+- [ ] npx sheet-e2e init
 - [ ] .env has the 4 keys + real GOOGLE_SPREADSHEET_ID
 - [ ] Cursor MCP reloaded
 - [ ] e2e/tab-suites.json uses exact tab names + chromium vs chromium-unauth

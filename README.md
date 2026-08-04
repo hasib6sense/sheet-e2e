@@ -20,10 +20,6 @@ npm i -D github:hasib6sense/sheet-e2e#main
 # Full host wiring (recommended for new or reset projects)
 npx sheet-e2e init
 
-# Optional: install browser binaries
-npx sheet-e2e init --browsers
-# or: npx playwright install
-
 # Verify the host (also prints the Runner URL)
 npx sheet-e2e doctor
 ```
@@ -44,7 +40,6 @@ npm i -D git+https://github.com/hasib6sense/sheet-e2e.git#main
 | `--minimal` | Runner shell only (page, APIs, `tab-suites.json`, scripts) — still prints Runner URL |
 | `--force` | Overwrite existing scaffold files (careful on existing apps; also overwrites `.cursor/mcp.json`) |
 | `--no-install` | Do not auto `npm i -D googleapis @playwright/test` |
-| `--browsers` | Also run `npx playwright install` |
 
 **Existing project tip:** If you already have `playwright.config.ts` / `auth.setup.ts`, run `init` **without** `--force` so those files are skipped and only runner routes / `tab-suites` / patches are added.
 
@@ -210,7 +205,7 @@ Prefer the project MCP config over a home-folder `~/.cursor/google-sheet-mcp` in
 ## CLI
 
 ```bash
-sheet-e2e init [--force] [--minimal] [--no-install] [--browsers]
+sheet-e2e init [--force] [--minimal] [--no-install]
 sheet-e2e uninstall [-y] [--purge] [--keep-dep]
 sheet-e2e doctor
 sheet-e2e run "Sign In"
